@@ -36,6 +36,8 @@ def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
             read_json(receipt) for prior in prior_roots
             for receipt in sorted((prior / "attempts").glob("*/cleanup-reconciliation.json"))
         ]}
+    readbacks = root / "artifact-readback.json"
+    value["artifact_readbacks"] = read_json(readbacks) if readbacks.exists() else []
     # Count returned tool calls from recorded events; absent logs stay unknown.
     # This describes treatment use without changing any attempt result or score.
     value["tool_usage"] = {}

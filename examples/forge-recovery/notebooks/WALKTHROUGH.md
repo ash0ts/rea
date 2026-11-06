@@ -1,8 +1,9 @@
 # Follow one recovered animation
 
 Final native publication is pending the complete 24-attempt comparison. The pair
-below is already recorded and independently checked. It is the first treatment
-attempt in manifest order whose submitted decoder passes every check.
+below passes the original recorded checks. A discovered browser-clock defect is
+being corrected through a uniform recheck of every eligible retained preview;
+final playback claims and the default pair will use that corrected check.
 
 1. Open **Recover the animation** and keep the default `basic`, repetition `1`.
    Start with the unseen nine-frame input, then switch to the visible six-frame
