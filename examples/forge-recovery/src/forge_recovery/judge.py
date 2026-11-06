@@ -91,10 +91,15 @@ def evaluate(candidate: Path, oracle: Path, root: Path, images: dict, deadline: 
     invalid_samples(oracle / "heldout/animation.piskel", bad_inputs)
     work = root / "invalid-work"
     stage_decoder(candidate, work)
+    valid_inputs_decoded = all(c["decoder"]["exit_code"] == 0 for c in result["cases"].values())
     with Sandbox(work, bad_inputs, image=images["base"]) as box:
         for name in ("malformed", "missing-chunk"):
             checked = run(box, f"python decode.py /input/{name}.piskel /work/{name}-output", 15)
-            result["regressions"][name] = {"passed": checked["exit_code"] not in (0, 124, 137) and bool(checked["stderr"] or checked["stdout"]), "execution": checked}
+            result["regressions"][name] = {
+                "passed": valid_inputs_decoded and checked["exit_code"] not in (0, 124, 137) and bool(checked["stderr"] or checked["stdout"]),
+                "valid_input_control_passed": valid_inputs_decoded,
+                "execution": checked,
+            }
         result["resources"].append(box.resources())
     result["passed"] = all(c["decoder"]["exit_code"] == 0 and c["pixels"]["passed"] and c["preview"]["passed"] for c in result["cases"].values()) and all(c["passed"] for c in result["regressions"].values())
     return result

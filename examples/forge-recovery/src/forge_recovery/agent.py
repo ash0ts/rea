@@ -93,9 +93,14 @@ async def recover(box: Sandbox, session, config: dict, attempt_id: str, ledger: 
                     span.record_error(error)
                     events.append({"kind": "model_error", "request": index, **ids, "error": str(error)})
                     raise
-            events.append({"kind": "model", "request": index, **ids, "usage": usage})
+            events.append({"kind": "model", "request": index, **ids, "usage": usage,
+                           "finish_reason": response.choices[0].finish_reason})
             messages.append(reply)
             write_json(root / "messages.json", messages)
+            if response.choices[0].finish_reason == "length":
+                # Keep the exact partial response, but never execute or replay it.
+                # Forge rejects a history containing truncated tool-call JSON.
+                raise BudgetStop("Model output token limit exhausted; partial response retained")
             if not reply.get("tool_calls"):
                 return {"completion": reply.get("content", ""), "events": events}
             for call in reply["tool_calls"]:

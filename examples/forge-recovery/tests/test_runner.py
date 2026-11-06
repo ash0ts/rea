@@ -87,3 +87,59 @@ def test_real_sdk_accepts_frozen_agent_turn_configuration():
     from forge_recovery.experiment import SYSTEM, TASK, MODEL
     turn = Turn(model=MODEL, system_instructions=[SYSTEM], messages=[message({"role": "user", "content": TASK})])
     assert turn.system_instructions == [SYSTEM]
+
+
+@pytest.mark.parametrize("with_tool", [True, False])
+def test_truncated_model_output_stops_before_execution_or_replay(tmp_path, monkeypatch, with_tool):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+    from openai.types.chat import ChatCompletion
+    from forge_recovery import agent
+    reply = {"role": "assistant", "content": "partial"}
+    if with_tool:
+        reply["tool_calls"] = [{"id": "call_partial", "type": "function", "function": {"name": "execute", "arguments": '{"command":"unfinished'}}]
+    response = ChatCompletion.model_validate({"id": "response", "object": "chat.completion", "created": 1, "model": "test", "choices": [{"index": 0, "finish_reason": "length", "message": reply}], "usage": {"prompt_tokens": 100, "completion_tokens": 8192, "total_tokens": 8292}})
+    create = AsyncMock(return_value=response)
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)), close=AsyncMock())
+    class Span:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def set_attributes(self, *_): pass
+    monkeypatch.setattr(agent, "credentials", lambda: "test-key")
+    monkeypatch.setattr(agent, "AsyncOpenAI", lambda **_: client)
+    monkeypatch.setattr(agent, "start_llm", lambda **_: Span())
+    monkeypatch.setattr(agent, "span_ids", lambda: {"span_id": "span", "trace_id": "trace"})
+    box = SimpleNamespace(execute=Mock(side_effect=AssertionError("partial tool call must not execute")))
+    config = {"system_prompt": "system", "task_prompt": "task", "model": "test", "temperature": 0.2, "base_url": "https://example.invalid", "tools": {"baseline": [agent.EXECUTE]}}
+    ledger = Ledger(tmp_path / "ledger.json")
+    with pytest.raises(BudgetStop, match="output token limit"):
+        asyncio.run(agent.recover(box, None, config, "attempt", ledger, tmp_path, float("inf")))
+    assert create.await_count == 1
+    box.execute.assert_not_called()
+    assert read_json(tmp_path / "messages.json")[-1] == response.choices[0].message.model_dump(exclude_none=True)
+    assert read_json(tmp_path / "events.json")[-1]["finish_reason"] == "length"
+    assert ledger.summary("attempt")["output_tokens"] == 8192
+    client.close.assert_awaited_once()
+
+
+@pytest.mark.parametrize("valid_exit, expected", [(2, False), (1, False), (0, True)])
+def test_invalid_input_checks_require_working_valid_input_control(tmp_path, monkeypatch, valid_exit, expected):
+    from forge_recovery import judge
+    from forge_recovery.common import write_json
+    oracle = tmp_path / "oracle"
+    for kind in ("visible", "heldout"):
+        write_json(oracle / kind / "animation.piskel", {"piskel": {"layers": [json.dumps({"chunks": []})]}})
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    class Box:
+        def __init__(self, work, inputs, **_): self.inputs = inputs
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def resources(self): return {}
+        def execute(self, command, **_):
+            return {"exit_code": 1 if self.inputs.name == "invalid-input" else valid_exit, "stdout": "", "stderr": "input rejected or decoder unavailable"}
+    monkeypatch.setattr(judge, "Sandbox", Box)
+    monkeypatch.setattr(judge, "grade", lambda *_: {"passed": False})
+    result = judge.evaluate(candidate, oracle, tmp_path / "check", {"base": "test", "checker": "test"})
+    assert all(r["passed"] is expected for r in result["regressions"].values())
+    assert all(r["valid_input_control_passed"] is expected for r in result["regressions"].values())

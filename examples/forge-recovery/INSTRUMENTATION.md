@@ -64,3 +64,12 @@ pixels, order, dimensions, FPS, hidden frames, sprite-sheet export, browser play
 and malformed/missing-chunk errors. Nonregular submission files are rejected before
 upload. Container removal checks the retained full ID and owner label. Any failed
 or unresolved cleanup retains its receipt and stops further attempts.
+
+Qualification exposed a truncated tool call at the 8,192 output-token limit.
+The runner preserves the exact partial response and its usage, then stops that
+attempt as `budget_stop` before executing or replaying the incomplete call. It
+never increases output limits or retries the paid request. Earlier qualification
+records retain their original HTTP 400 outcome; a corrected runner uses a new
+frozen experiment. Invalid-input regression passes also require that the decoder
+ran successfully on both valid inputs, so a missing or broken decoder cannot
+receive credit merely for exiting nonzero.
