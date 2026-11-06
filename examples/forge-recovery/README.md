@@ -20,7 +20,7 @@ cd examples/forge-recovery
 uv sync --extra test
 uv run playwright install chromium
 uv run forge-recovery prepare --root .local/prepared
-uv run pytest
+uv run pytest tests/test_benchmark.py tests/test_sandbox.py
 ```
 
 Preparation builds pinned Piskel source, creates six fixture families and a separate
