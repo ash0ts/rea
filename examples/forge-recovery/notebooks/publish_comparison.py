@@ -68,6 +68,8 @@ def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
         ]}
     source_receipt = root / "controller-publication.json"
     value["frozen_controller_source"] = read_json(source_receipt) if source_receipt.exists() else None
+    if value["frozen_controller_source"] is not None and (root / "controller-readback.json").exists():
+        value["frozen_controller_source"]["readback"] = read_json(root / "controller-readback.json")
     value["infrastructure_events"] = [read_json(path) for path in sorted((root / "infrastructure-events").glob("*/event.json"))]
     readbacks = root / "artifact-readback.json"
     value["artifact_readbacks"] = read_json(readbacks) if readbacks.exists() else []
