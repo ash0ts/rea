@@ -8,6 +8,7 @@ dependencies = ["pillow==13.0.0", "playwright==1.64.1"]
 [project.optional-dependencies]
 test = ["pytest==9.2.0"]
 forge = ["weave==0.54.1", "wandb==0.31.0", "openai==3.46.0", "mcp==2.3.0"]
+notebooks = ["marimo==0.25.1", "wandb==0.31.0"]
 
 [project.scripts]
 forge-recovery = "forge_recovery.cli:main"
