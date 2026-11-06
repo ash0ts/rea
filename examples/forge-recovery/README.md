@@ -62,3 +62,29 @@ retain the receipt for retry; never sweep containers by name prefix or PID.
 
 The reference browser is run by the benchmark builder on the trusted pinned
 open-source application. Candidate code is never run directly by the host checker.
+
+## Checker and transport regressions
+
+The preview checker installs Playwright's clock before navigation and pauses it
+before manual playback ticks. Driver/RPC time must not advance the browser clock
+between samples. A retained 13-FPS preview exposed a false timing failure in the
+original checker: 1,944 ms of requested ticks advanced its unpaused clock by
+2,465 ms. The same output passed with the clock paused. Original campaign records
+remain immutable; every eligible retained preview must receive the same corrected
+check before reporting final playback outcomes.
+
+With an already built checker image, run the real browser regressions explicitly:
+
+```sh
+REA_RECOVERY_CHECKER_IMAGE=rea-forge-recovery-checker:v1 \
+  uv run pytest tests/test_preview_clock.py
+```
+
+They exercise 13-FPS animation-frame playback, hidden frames and a wrong-FPS
+negative control under driver delay. They are skipped when no checker image is
+selected. See [Playwright's manual clock guidance](https://playwright.dev/python/docs/clock#tick-through-time-manually-firing-all-the-timers-consistently).
+
+Docker start, execution transport and cleanup calls have deadlines. A daemon
+connection failure is an infrastructure error, distinct from a generated command
+exiting or timing out. The container ID/owner receipt remains available when
+cleanup or a late startup response cannot be verified.

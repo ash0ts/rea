@@ -1,5 +1,6 @@
 """Check the delivered UI inside an isolated, credential-free browser container."""
 import base64
+import datetime
 import functools
 import http.server
 import io
@@ -22,6 +23,8 @@ try:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
         page = browser.new_page(accept_downloads=True)
         page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(origin + "/") else route.abort())
+        # Install before application timers; pause only after initial rendering.
+        page.clock.install(time=datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc))
         page.goto(origin + "/index.html")
         page.wait_for_function("document.querySelector('canvas')?.width > 0")
         slider = page.get_by_role("slider", name="Frame", exact=True)
@@ -39,7 +42,8 @@ try:
             else:
                 raise ValueError(f"Canvas differs at frame {i}")
         result["scrubbing"] = True
-        page.clock.install()
+        # Manual ticks must own all elapsed browser time, including between RPCs.
+        page.clock.pause_at(datetime.datetime(2024, 1, 1, 0, 1, tzinfo=datetime.timezone.utc))
         slider.evaluate("el => { el.value = 0; el.dispatchEvent(new Event('input', {bubbles: true})); }")
         page.get_by_role("button", name="Play", exact=True).click()
         order = metadata["playback_order"]
@@ -56,7 +60,10 @@ try:
                 changes.append((tick + 1) * step)
                 previous = current
         page.get_by_role("button", name="Pause", exact=True).click()
+        result["timing"] = {"expected_period_ms": period, "sample_step_ms": step, "observed_change_ms": changes}
         result["playback"] = len(changes) >= len(order) and all(abs((b - a) - period) <= step * 2 for a, b in zip(changes, changes[1:]))
+        if not result["playback"]:
+            result["errors"].append("Playback timing differs; inspect the recorded virtual-clock change times")
         with page.expect_download() as download:
             page.get_by_role("link", name="Download sprite sheet", exact=True).click()
         saved = Path("/tmp/download.png")

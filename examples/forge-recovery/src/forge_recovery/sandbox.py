@@ -8,6 +8,10 @@ from pathlib import Path
 from .common import BASE_IMAGE, write_json
 
 
+class SandboxTransportError(RuntimeError):
+    """Docker management/transport failed; this is not a candidate command exit."""
+
+
 class Sandbox:
     """Own only the container whose returned ID and attempt label we retained."""
 
@@ -20,20 +24,28 @@ class Sandbox:
         self.start_pending = False
         self.receipt = self.workspace.parent / (self.workspace.name + ".container.json")
 
+    def _docker(self, operation: str, arguments: list[str], *, timeout: float, **kwargs):
+        try:
+            return subprocess.run(["docker", *arguments], timeout=timeout, **kwargs)
+        except subprocess.TimeoutExpired as error:
+            raise SandboxTransportError(
+                f"Docker {operation} did not respond within {timeout:g}s; retain {self.receipt}"
+            ) from error
+
     def start(self) -> "Sandbox":
         self.workspace.mkdir(parents=True, exist_ok=True)
         name = "rea-recovery-" + uuid.uuid4().hex
         write_json(self.receipt, {"owner": self.owner, "name": name, "status": "starting"})
         self.start_pending = True
-        result = subprocess.run([
-            "docker", "run", "-d", "--name", name, "--label", "rea-recovery.owner=" + self.owner,
+        result = self._docker("start", [
+            "run", "-d", "--name", name, "--label", "rea-recovery.owner=" + self.owner,
             "--network", "none", "--cpus", "2", "--memory", "4g", "--pids-limit", "128",
             "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
             "--tmpfs", "/tmp:rw,nosuid,size=512m", "--mount", f"type=bind,src={self.workspace},dst=/work",
             "--mount", f"type=bind,src={self.inputs},dst=/input,readonly", self.image,
-        ], text=True, capture_output=True)
+        ], timeout=30, text=True, capture_output=True)
         if result.returncode:
-            raise RuntimeError(f"Container start failed; retain {self.receipt}: {result.stderr.strip()}")
+            raise SandboxTransportError(f"Container start failed; retain {self.receipt}: {result.stderr.strip()}")
         self.container_id = result.stdout.strip()
         self.start_pending = False
         write_json(self.receipt, {"owner": self.owner, "id": self.container_id, "name": name, "status": "running"})
@@ -42,16 +54,12 @@ class Sandbox:
     def execute(self, command: str, *, timeout: float = 60) -> dict:
         if not self.container_id:
             raise RuntimeError("Container has not started")
-        try:
-            result = subprocess.run([
-                "docker", "exec", "-w", "/work", self.container_id,
-                "python", "/opt/recovery/execute.py", command, str(max(1, int(timeout))),
-            ], capture_output=True, timeout=timeout + 10)
-        except subprocess.TimeoutExpired:
-            # The in-container deadline owns the process; the caller stops this container on return.
-            return {"exit_code": 124, "stdout": "", "stderr": "Container command deadline expired", "truncated": False}
+        result = self._docker("execute", [
+            "exec", "-w", "/work", self.container_id,
+            "python", "/opt/recovery/execute.py", command, str(max(1, int(timeout))),
+        ], capture_output=True, timeout=timeout + 10)
         if result.returncode:
-            raise RuntimeError("Container execution transport failed: " + result.stderr[:4096].decode(errors="replace"))
+            raise SandboxTransportError("Container execution transport failed: " + result.stderr[:4096].decode(errors="replace"))
         return json.loads(result.stdout)
 
     def resources(self) -> dict:
@@ -69,13 +77,13 @@ class Sandbox:
             if self.start_pending:
                 raise RuntimeError(f"Container startup identity is unresolved; retain {self.receipt} for cleanup retry")
             return
-        result = subprocess.run(["docker", "inspect", self.container_id], capture_output=True, text=True)
+        result = self._docker("inspect for cleanup", ["inspect", self.container_id], timeout=15, capture_output=True, text=True)
         if result.returncode:
             raise RuntimeError(f"Cannot establish cleanup ownership; retain {self.receipt}")
         state = json.loads(result.stdout)[0]
         if state["Config"]["Labels"].get("rea-recovery.owner") != self.owner or state["Id"] != self.container_id:
             raise RuntimeError(f"Container identity mismatch; retain {self.receipt}")
-        removed = subprocess.run(["docker", "rm", "-f", self.container_id], capture_output=True, text=True)
+        removed = self._docker("remove", ["rm", "-f", self.container_id], timeout=15, capture_output=True, text=True)
         if removed.returncode:
             raise RuntimeError(f"Container cleanup failed; retain {self.receipt}: {removed.stderr}")
         write_json(self.receipt, {"owner": self.owner, "id": self.container_id, "status": "removed"})
