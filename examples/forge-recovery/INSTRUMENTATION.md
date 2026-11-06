@@ -8,12 +8,11 @@ the persistent MCP session; oversized tool responses link to the complete local 
 
 ```sh
 uv sync --extra test --extra forge
-sh scripts/build-containers.sh
 uv run pytest
-uv run forge-recovery qualify --root .local/experiment --prepared .local/prepared \
-  --entity YOUR_ENTITY --ledger .local/execution-ledger.json
-uv run forge-recovery run --root .local/experiment --prepared .local/prepared \
-  --entity YOUR_ENTITY --ledger .local/execution-ledger.json
+REA_RECOVERY_PYTHON=.venv/bin/python sh scripts/build-containers.sh -- \
+  .venv/bin/python -m forge_recovery.cli qualify --run-scored \
+  --root .local/experiment --prepared .local/prepared --entity YOUR_ENTITY \
+  --ledger .local/execution-ledger.json
 uv run forge-recovery summarize --root .local/experiment
 ```
 
@@ -29,7 +28,7 @@ upload; it does not require successful recovery. Never replace a failed scored
 attempt with a retry. An existing result is returned unchanged on resume. An
 interrupted attempt retains its directory and resource receipt for inspection.
 
-The pinned model is `moonshotai/Kimi-K2.7-Code`, temperature 0.2, output limit 8192,
+The pinned model is `moonshotai/Kimi-K2.7-Code`, temperature 0.2, output limit 16,384 tokens,
 with SDK retries disabled. The published rates checked November 6, 2026 are $0.71/M
 input and $3.50/M output; cached input is conservatively charged at the uncached
 rate. Each call reserves the entire 262144-token context plus maximum output before
@@ -74,8 +73,8 @@ frozen experiment. Invalid-input regression passes also require that the decoder
 ran successfully on both valid inputs, so a missing or broken decoder cannot
 receive credit merely for exiting nonzero.
 
-Before any scored attempt, the next qualification increases the output allowance
-to 16,384 tokens for both arms. Kimi-K2.7-Code, temperature, prompts, 40 requests,
+The final qualification and scored campaign use the increased 16,384-token
+output allowance for both arms. Kimi-K2.7-Code, temperature, prompts, 40 requests,
 15 minutes and $5 per-attempt limits remain fixed. The request reservation derives
 from that same output limit. The user authorized further qualification and removed
 the total spending restriction; the implementation retains its conservative $150
@@ -101,14 +100,9 @@ and all scored attempts. The qualification gate is saved and checked before any
 scored request; failure still closes every owned retention container. This avoids
 an unreferenced-image gap between separate command invocations on a shared daemon.
 
-The build can own image retention through the complete campaign as well:
-
-```sh
-REA_RECOVERY_PYTHON=.venv/bin/python sh scripts/build-containers.sh -- \
-  .venv/bin/python -m forge_recovery.cli qualify --run-scored \
-  --root .local/experiment --prepared .local/prepared --entity wandb \
-  --ledger .local/execution-ledger.json
-```
+The command above retains images continuously from their build through the
+complete campaign. Standalone `qualify` and `run` commands are also available,
+but the operator must preserve the frozen images between invocations.
 
 Each newly built image is immediately referenced by an owned isolated container,
 including while later images build. The same owner retains those references until
