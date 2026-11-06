@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import ExitStack, contextmanager
 import fcntl
 import json
 import resource
@@ -55,6 +56,24 @@ def image_id(name: str) -> str:
 
 def code_inventory() -> dict:
     return {str(p.relative_to(PACKAGE)): digest(p) for folder in ("src", "containers", "scripts") for p in sorted((PACKAGE / folder).rglob("*")) if p.is_file() and "__pycache__" not in p.parts}
+
+
+@contextmanager
+def retain_images(config: dict, root: Path):
+    """Keep each frozen image in use throughout a phase, including idle arm gaps.
+
+    An image vanished between qualification arms on the shared Docker daemon.
+    Empty, network-isolated containers retain references without running agents.
+    Register cleanup before startup so partial starts retain their receipts too.
+    """
+    with ExitStack() as resources:
+        for role, image in config["images"].items():
+            box = Sandbox(root / "image-retention" / role,
+                          Path(config["prepared"]) / "inputs/bundle", image=image,
+                          owner=config["experiment_id"] + "-retain-" + role)
+            resources.callback(box.close)
+            box.start()
+        yield
 
 
 async def freeze(root: Path, prepared: Path, entity: str) -> dict:
@@ -227,10 +246,11 @@ async def execute(root: Path, prepared: Path, entity: str, phase: str, ledger_pa
             if not qualification["qualified"]:
                 raise RuntimeError("Qualification failed; do not launch scored attempts")
         rows = []
-        for spec in config["qualification" if phase == "qualification" else "attempts"]:
-            rows.append(await attempt(config, spec, root, Ledger(ledger_path)))
-            if rows[-1].get("cleanup_status") != "complete":
-                raise RuntimeError("Cleanup requires retry before further execution")
+        with retain_images(config, root):
+            for spec in config["qualification" if phase == "qualification" else "attempts"]:
+                rows.append(await attempt(config, spec, root, Ledger(ledger_path)))
+                if rows[-1].get("cleanup_status") != "complete":
+                    raise RuntimeError("Cleanup requires retry before further execution")
         if phase == "qualification":
             qualified = all(r.get("task_status") in ("success", "task_failure", "budget_stop", "timeout") and r.get("lens_status") == "verified" and r.get("upload_status") == "complete" and r.get("evidence_export", {}).get("status") in ("complete", "not_applicable") and any(e["kind"] == "tool" for e in read_json(root / "attempts" / r["attempt_id"] / "events.json")) for r in rows)
             write_json(root / "qualification.json", {"qualified": qualified, "attempts": [r["attempt_id"] for r in rows]})

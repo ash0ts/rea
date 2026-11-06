@@ -99,3 +99,19 @@ def test_export_and_upload_failures_preserve_task_result(harness, monkeypatch):
     assert result["evidence_export"]["status"] == "failed"
     assert result["cleanup_status"] == "complete"
     assert read_json(root / "attempts/a/result.json") == result
+
+
+def test_image_retention_closes_every_resource_after_partial_start(harness):
+    config, spec, root, ledger, box = harness
+    original_start = box.start
+    def fail_second(self):
+        self.workspace.parent.mkdir(parents=True, exist_ok=True)
+        original_start(self)
+        if len(box.instances) == 2:
+            raise RuntimeError("startup failed after identity was recorded")
+    box.start = fail_second
+    with pytest.raises(RuntimeError, match="startup failed"):
+        with experiment.retain_images(config, root):
+            pytest.fail("must not begin attempts")
+    assert len(box.instances) == 2
+    assert all(b.closed and b.container_id is None for b in box.instances)
