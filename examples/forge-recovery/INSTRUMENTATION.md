@@ -47,6 +47,11 @@ every model context; provider usage therefore counts repeated schemas, context a
 failed calls with known usage. Agent Lens readback is saved beside the result. Every
 attempt has a W&B run and immutable result artifact; failed upload does not discard
 local data or change the task outcome. The run link is attached to the root span.
+Run summaries preserve an unavailable checker judgment as `passed: null` with
+`checks_available: false`; an executed failed check remains `passed: false`.
+The older frozen campaign uploader defaulted a missing judgment to false in the
+native run summary. Any summary repair must retain the before/after values and
+leave the original attempt, checker records and artifact bytes unchanged.
 
 Execution has 15 minutes, with the final 90 seconds reserved for independent checks.
 Every checker command also has a bounded deadline. Cleanup and artifact upload may

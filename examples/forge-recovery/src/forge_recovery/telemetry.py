@@ -104,7 +104,9 @@ def upload_attempt(entity: str, root: Path, result: dict) -> dict:
                     group=result["experiment_id"], job_type=result["phase"],
                     config=result["identity"], dir=str(root),
                     settings=wandb.Settings(disable_git=True, disable_code=True, console="off")) as run:
-        run.summary.update({"task_status": result["task_status"], "passed": result.get("checker", {}).get("passed", False), **result["usage"]})
+        checker = result.get("checker") or {}
+        run.summary.update({"task_status": result["task_status"], "passed": checker.get("passed"),
+                            "checks_available": "passed" in checker, **result["usage"]})
         artifact = wandb.Artifact("attempt-" + result["attempt_id"], type="recovery-attempt", metadata=result["identity"])
         for name in ("result.json", "messages.json", "events.json", "lens-readback.json"):
             if (root / name).exists():
