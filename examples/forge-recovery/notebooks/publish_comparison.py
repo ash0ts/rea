@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 from pathlib import Path
 
@@ -35,6 +36,20 @@ def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
             read_json(receipt) for prior in prior_roots
             for receipt in sorted((prior / "attempts").glob("*/cleanup-reconciliation.json"))
         ]}
+    # Count returned tool calls from recorded events; absent logs stay unknown.
+    # This describes treatment use without changing any attempt result or score.
+    value["tool_usage"] = {}
+    for row in summary["attempts"]:
+        events = root / "attempts" / row["attempt_id"] / "events.json"
+        if events.exists():
+            counts = Counter(event["tool"] for event in read_json(events) if event["kind"] == "tool")
+            value["tool_usage"][row["attempt_id"]] = {
+                "returned_calls": sum(counts.values()),
+                "rea_returned_calls": sum(count for name, count in counts.items() if name != "execute"),
+                "by_tool": dict(counts),
+            }
+        else:
+            value["tool_usage"][row["attempt_id"]] = None
     write_json(destination / "comparison.json", value)
     credentials()
     entity = experiment["entity"]

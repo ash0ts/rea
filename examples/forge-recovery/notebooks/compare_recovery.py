@@ -86,13 +86,15 @@ def _(mo, rows):
 
 
 @app.cell
-def _(mo, rows):
+def _(data, mo, rows):
     navigation = [{"attempt": r["attempt_id"], "status": r["task_status"], "Agent Lens": mo.md(f"[Open conversation]({r['lens_url']})"), "Run / artifacts": mo.md(f"[Open run]({r.get('publication', {}).get('run_url', r['lens_url'])})"),
         "agent CPU seconds": r.get("agent_resources", {}).get("container_cpu_seconds"),
         "agent peak MiB": round(r["agent_resources"]["container_peak_memory_bytes"] / 1048576, 2) if r.get("agent_resources", {}).get("container_peak_memory_bytes") is not None else None,
+        "REA returned tool calls": (data.get("tool_usage", {}).get(r["attempt_id"]) or {}).get("rea_returned_calls"),
+        "all returned tool calls": (data.get("tool_usage", {}).get(r["attempt_id"]) or {}).get("returned_calls"),
         "upload": r.get("upload_status"), "Evidence export": r.get("evidence_export", {}).get("status")} for r in rows]
     choose_failure = mo.ui.dropdown({r["attempt_id"]: r["attempt_id"] for r in rows}, value=rows[0]["attempt_id"] if rows else None, label="Inspect one attempt")
-    mo.vstack([mo.md("## Every attempt, including failures"), mo.ui.table(navigation, selection=None, page_size=24), choose_failure])
+    mo.vstack([mo.md("## Every attempt, including failures"), mo.md("Tool counts come from returned tool-call events, including returned errors. Interrupted calls may appear only in Agent Lens. Zero REA calls means the treatment agent used its ordinary tools without invoking REA; blank means the event log was unavailable."), mo.ui.table(navigation, selection=None, page_size=24), choose_failure])
     return choose_failure,
 
 

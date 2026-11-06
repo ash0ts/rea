@@ -8,7 +8,8 @@ If no REA attempt succeeds, it labels that fact instead of inventing a successfu
 
 `compare_recovery.py` retains all 24 scored attempts in paired outcome/resource
 tables, exposes each checker criterion, and links every failure and success.
-Unknown measurements are not zero. The six fixture families are the cases; two
+Returned tool-call counts show whether a treatment agent actually invoked REA;
+interrupted calls remain inspectable in Agent Lens. Unknown measurements are not zero. The six fixture families are the cases; two
 repetitions do not turn them into twelve independent cases.
 
 The shared source of every displayed score is the frozen comparison artifact.
