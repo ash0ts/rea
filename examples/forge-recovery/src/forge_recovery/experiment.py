@@ -12,9 +12,10 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+from openai import APITimeoutError
 from weave.conversation import Message, start_conversation, start_turn
 
-from .agent import rea_session, recover, tools_for
+from .agent import REQUEST_BYTE_LIMIT, rea_session, recover, tools_for
 from .benchmark import PACKAGE
 from .budget import BudgetStop, Ledger, OUTPUT_LIMIT, REQUEST_RESERVATION
 from .common import FAMILIES, REA_REVISION, canonical_digest, digest, inventory, read_json, verify_inventory, write_json
@@ -43,7 +44,7 @@ def error_status(error: BaseException) -> str:
         return next((s for s in ("cancelled", "timeout", "budget_stop") if s in statuses), "infrastructure_failure")
     if isinstance(error, (asyncio.CancelledError, KeyboardInterrupt)):
         return "cancelled"
-    if isinstance(error, TimeoutError):
+    if isinstance(error, (TimeoutError, APITimeoutError)):
         return "timeout"
     if isinstance(error, BudgetStop):
         return "budget_stop"
@@ -106,6 +107,8 @@ async def freeze(root: Path, prepared: Path, entity: str) -> dict:
         "prepared": str(prepared.resolve()), "prepared_manifest": data, "rea_revision": REA_REVISION, "images": images,
         "model": MODEL, "base_url": "https://api.inference.wandb.ai/v1", "temperature": 0.2,
         "request_max_tokens": OUTPUT_LIMIT, "request_max_retries": 0, "request_reservation_usd": REQUEST_RESERVATION,
+        "request_timeout": "remaining_agent_deadline",
+        "request_serialized_byte_limit": REQUEST_BYTE_LIMIT,
         "budget": {"total_usd": 150, "attempts_usd": 130, "notebooks_usd": 20, "attempt_usd": 5, "attempt_seconds": 900, "agent_seconds": 810, "attempt_requests": 40},
         "system_prompt": SYSTEM, "task_prompt": TASK, "tools": {"baseline": await tools_for(None), "rea": rea_tools},
         "code": code_inventory(), "attempts": attempts,

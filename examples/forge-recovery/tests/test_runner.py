@@ -77,6 +77,14 @@ def test_nested_mcp_failures_preserve_timeout_and_budget_categories():
     assert error_status(ExceptionGroup("mcp", [BudgetStop()])) == "budget_stop"
 
 
+def test_real_sdk_deadline_error_remains_a_timeout_through_mcp_finalization():
+    import httpx
+    from openai import APITimeoutError
+    error = APITimeoutError(request=httpx.Request("POST", "https://example.invalid"))
+    assert error_status(error) == "timeout"
+    assert error_status(ExceptionGroup("mcp", [error])) == "timeout"
+
+
 def test_conversation_tool_ids_survive_message_conversion():
     call = message({"role": "assistant", "tool_calls": [{"id": "call_1", "function": {"name": "execute", "arguments": '{"command":"pwd"}'}}]})
     reply = message({"role": "tool", "tool_call_id": "call_1", "content": '{"stdout":"/work"}'})

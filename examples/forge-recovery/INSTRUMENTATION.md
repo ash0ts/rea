@@ -81,3 +81,16 @@ from that same output limit. The user authorized further qualification and remov
 the total spending restriction; the implementation retains its conservative $150
 default because current execution is well below it. Every earlier experiment keeps
 its original configuration and results.
+
+The SDK's `APITimeoutError` is categorized as `timeout`, including when wrapped by
+MCP finalization, rather than an infrastructure failure. Model requests may use
+the remaining agent deadline instead of a separate three-minute cap; the total
+attempt limit is unchanged. A timed-out request is never retried, and its uncertain
+usage keeps the full reservation. Earlier records retain the original category.
+
+Qualification also exposed premature controller admission: a 220,000-byte guard
+stopped REA after eight requests despite the preceding response reporting 57,431
+prompt tokens. Before scoring, both arms use a manifest-recorded 1 MiB serialized
+request bound. This limits controller payload size, not model tokens; Forge owns
+token-context admission. No history is silently truncated. The ledger still
+reserves the full published model context plus the configured output allowance.

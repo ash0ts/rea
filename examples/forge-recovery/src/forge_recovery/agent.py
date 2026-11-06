@@ -17,6 +17,7 @@ from .sandbox import Sandbox
 from .telemetry import credentials, message, span_ids
 
 REA_TOOLS = ("analyze_javascript_application", "trace_application_feature", "trace_javascript_semantics", "inspect_analysis_view", "get_evidence_bundle")
+REQUEST_BYTE_LIMIT = 1048576
 EXECUTE = {"type": "function", "function": {"name": "execute", "description": "Run shell commands in the isolated workspace /work. Python with Pillow, Node, and ripgrep are installed. /input is read-only; no network. Read files, search code, write and test your decoder. Output is bounded to 64 KiB per stream.", "parameters": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"], "additionalProperties": False}}}
 
 
@@ -60,13 +61,15 @@ async def recover(box: Sandbox, session, config: dict, attempt_id: str, ledger: 
     if toolset != config["tools"]["rea" if session else "baseline"]:
         raise RuntimeError("Live tool schemas differ from the frozen manifest")
     events = []
-    client = AsyncOpenAI(api_key=credentials(), base_url=config["base_url"], max_retries=0, timeout=180)
+    client = AsyncOpenAI(api_key=credentials(), base_url=config["base_url"], max_retries=0,
+                        timeout=max(1, deadline - time.monotonic()))
     try:
         for index in range(40):
             if time.monotonic() >= deadline:
                 raise TimeoutError("Attempt exceeded 15 minutes")
-            # A conservative bound on content before the server's context admission.
-            if len(json.dumps({"messages": messages, "tools": toolset}).encode()) > 220000:
+            # Bound controller payload size; the provider owns token-context admission.
+            # This is a byte limit, not an estimate of model tokens.
+            if len(json.dumps({"messages": messages, "tools": toolset}).encode()) > REQUEST_BYTE_LIMIT:
                 raise BudgetStop("Context bound reached; no silent truncation")
             reservation = ledger.reserve(attempt_id)
             with start_llm(model=config["model"], provider_name="forge") as span:
@@ -78,7 +81,7 @@ async def recover(box: Sandbox, session, config: dict, attempt_id: str, ledger: 
                 try:
                     response = await client.chat.completions.create(model=config["model"], messages=messages, tools=toolset,
                         temperature=config["temperature"], max_tokens=OUTPUT_LIMIT,
-                        timeout=min(180, max(1, deadline - time.monotonic())))
+                        timeout=max(1, deadline - time.monotonic()))
                     usage = response.usage.model_dump() if response.usage else None
                     ledger.settle(reservation, usage)
                     if usage:
