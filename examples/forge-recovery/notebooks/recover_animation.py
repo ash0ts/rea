@@ -146,9 +146,9 @@ def _(
             _right = Image.open(_candidate).convert("RGBA")
             if _left.size == _right.size:
                 _diff = ImageChops.difference(_left, _right)
-                _changed = sum(a != b for a, b in zip(_left.getdata(), _right.getdata()))
+                _changed = sum(a != b for a, b in zip(_left.get_flattened_data(), _right.get_flattened_data()))
                 _mask = Image.new("RGB", _left.size)
-                _mask.putdata([(225, 29, 72) if any(pixel) else (241, 245, 249) for pixel in _diff.getdata()])
+                _mask.putdata([(225, 29, 72) if any(pixel) else (241, 245, 249) for pixel in _diff.get_flattened_data()])
                 differences.append(mo.vstack([mo.md(f"**{arm} pixel difference:** {_changed} changed RGBA pixels (pink includes alpha-only changes)"), mo.image(_mask.resize((_left.width * 10, _left.height * 10), Image.Resampling.NEAREST))]))
             cards.append(mo.vstack([mo.md(f"### {arm.upper()} recovery"), animation(_folder, _metadata["frames"], _metadata["playback_order"], _metadata["fps"]), display_image(_candidate)]))
         except (OSError, ValueError, KeyError, IndexError) as _error:
