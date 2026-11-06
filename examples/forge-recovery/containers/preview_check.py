@@ -1,0 +1,91 @@
+"""Check the delivered UI inside an isolated, credential-free browser container."""
+import base64
+import datetime
+import functools
+import http.server
+import io
+import json
+import threading
+from pathlib import Path
+
+from PIL import Image, ImageChops
+from playwright.sync_api import sync_playwright
+
+root = Path("/work/output")
+metadata = json.loads((root / "manifest.json").read_text())
+result = {"scrubbing": None, "playback": None, "download": None, "errors": []}
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root)))
+thread = threading.Thread(target=server.serve_forever, daemon=True)
+thread.start()
+origin = f"http://127.0.0.1:{server.server_port}"
+try:
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        page = browser.new_page(accept_downloads=True)
+        page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(origin + "/") else route.abort())
+        # Install before application timers; pause only after initial rendering.
+        page.clock.install(time=datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc))
+        page.goto(origin + "/index.html")
+        page.wait_for_function("document.querySelector('canvas')?.width > 0")
+        slider = page.get_by_role("slider", name="Frame", exact=True)
+        slider.wait_for()
+        expected_frames = []
+        for frame_name in metadata["frames"]:
+            with Image.open(root / frame_name) as frame_image:
+                expected_frames.append(frame_image.convert("RGBA"))
+
+        def wait_for_canvas(index):
+            expected = expected_frames[index]
+            for retry in range(30):
+                data = page.locator("canvas").first.evaluate("c => c.toDataURL('image/png')")
+                observed = Image.open(io.BytesIO(base64.b64decode(data.split(",", 1)[1]))).convert("RGBA")
+                if observed.size == expected.size and ImageChops.difference(observed, expected).getbbox(alpha_only=False) is None:
+                    return
+                page.wait_for_timeout(50)
+            raise ValueError(f"Canvas differs at frame {index}")
+
+        result["scrubbing"] = False
+        for i in range(len(metadata["frames"])):
+            slider.evaluate("(el, n) => { el.value = n; el.dispatchEvent(new Event('input', {bubbles: true})); }", i)
+            wait_for_canvas(i)
+        result["scrubbing"] = True
+        # Manual ticks must own all elapsed browser time, including between RPCs.
+        page.clock.pause_at(datetime.datetime(2024, 1, 1, 0, 1, tzinfo=datetime.timezone.utc))
+        slider.evaluate("el => { el.value = 0; el.dispatchEvent(new Event('input', {bubbles: true})); }")
+        result["playback"] = False
+        page.get_by_role("button", name="Play", exact=True).click()
+        order = metadata["playback_order"]
+        period = 1000 / metadata["fps"]
+        step = max(1, int(period / 8))
+        previous = int(slider.input_value())
+        changes = []
+        for tick in range(len(order) * 24):
+            page.clock.run_for(step)
+            current = int(slider.input_value())
+            if current != previous:
+                if current != order[(order.index(previous) + 1) % len(order)]:
+                    raise ValueError("Playback frame order differs")
+                wait_for_canvas(current)
+                changes.append((tick + 1) * step)
+                previous = current
+        page.get_by_role("button", name="Pause", exact=True).click()
+        result["timing"] = {"expected_period_ms": period, "sample_step_ms": step, "observed_change_ms": changes}
+        result["playback"] = len(changes) >= len(order) and all(abs((b - a) - period) <= step * 2 for a, b in zip(changes, changes[1:]))
+        if not result["playback"]:
+            result["errors"].append("Playback timing differs; inspect the recorded virtual-clock change times")
+        result["download"] = False
+        with page.expect_download() as download:
+            page.get_by_role("link", name="Download sprite sheet", exact=True).click()
+        saved = Path("/tmp/download.png")
+        download.value.save_as(saved)
+        expected_sheet = Image.open(root / "spritesheet.png").convert("RGBA")
+        downloaded = Image.open(saved).convert("RGBA")
+        result["download"] = downloaded.size == expected_sheet.size and ImageChops.difference(downloaded, expected_sheet).getbbox(alpha_only=False) is None
+        browser.close()
+except Exception as error:
+    result["errors"].append(f"{type(error).__name__}: {error}")
+finally:
+    server.shutdown()
+    server.server_close()
+result["passed"] = all(result[key] for key in ("scrubbing", "playback", "download"))
+print(json.dumps(result))

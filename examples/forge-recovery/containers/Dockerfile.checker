@@ -1,0 +1,6 @@
+FROM rea-forge-recovery-base:v1
+RUN /opt/python/bin/pip install --no-cache-dir playwright==1.64.1 \
+    && /opt/python/bin/playwright install --with-deps --only-shell chromium \
+    && rm -rf /var/lib/apt/lists/*
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+COPY preview_check.py /opt/recovery/preview_check.py
