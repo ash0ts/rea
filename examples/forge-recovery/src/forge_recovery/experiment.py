@@ -139,7 +139,7 @@ async def attempt(config: dict, spec: dict, root: Path, ledger: Ledger) -> dict:
     result["cleanup_receipt"] = str(box.receipt)
     interrupted = False
     with start_conversation(agent_name="Piskel recovery", model=config["model"], conversation_id=spec["attempt_id"], conversation_name=f"{spec['fixture']} · {spec['arm']} · {spec['repetition']}", attributes=identity):
-        with start_turn(user_message=config["task_prompt"], model=config["model"], system_instructions=config["system_prompt"]) as turn:
+        with start_turn(user_message=config["task_prompt"], model=config["model"], system_instructions=[config["system_prompt"]]) as turn:
             result.update(span_ids())
             turn.set_attributes({"recovery.run_url": f"https://wandb.ai/{config['entity']}/rea-showcase/runs/{spec['attempt_id']}",
                 "recovery.artifact_collection": f"{config['entity']}/rea-showcase/attempt-{spec['attempt_id']}"})

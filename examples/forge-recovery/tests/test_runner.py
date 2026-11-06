@@ -80,3 +80,10 @@ def test_conversation_tool_ids_survive_message_conversion():
     call = message({"role": "assistant", "tool_calls": [{"id": "call_1", "function": {"name": "execute", "arguments": '{"command":"pwd"}'}}]})
     reply = message({"role": "tool", "tool_call_id": "call_1", "content": '{"stdout":"/work"}'})
     assert call.parts[0].id == reply.parts[0].id == "call_1"
+
+
+def test_real_sdk_accepts_frozen_agent_turn_configuration():
+    from weave.conversation import Turn
+    from forge_recovery.experiment import SYSTEM, TASK, MODEL
+    turn = Turn(model=MODEL, system_instructions=[SYSTEM], messages=[message({"role": "user", "content": TASK})])
+    assert turn.system_instructions == [SYSTEM]
