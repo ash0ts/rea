@@ -188,3 +188,9 @@ def test_transport_failure_stops_paid_loop_but_candidate_timeout_can_be_recovere
     assert client.chat.completions.create.await_count == (1 if transport_failure else 2)
     assert ledger.summary("attempt")["requests"] == (1 if transport_failure else 2)
     client.close.assert_awaited_once()
+
+
+def test_partial_checker_record_cannot_pass_by_vacuous_truth():
+    from forge_recovery.judge import passed_all_checks
+    assert not passed_all_checks({"cases": {}, "regressions": {}})
+    assert not passed_all_checks({})

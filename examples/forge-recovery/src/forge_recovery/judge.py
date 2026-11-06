@@ -55,6 +55,8 @@ def stage_decoder(candidate: Path, work: Path) -> None:
 
 def passed_all_checks(result: dict) -> bool:
     """One scoring rule for original checks and uniform recorded-output rechecks."""
+    if set(result.get("cases", {})) != {"visible", "heldout"} or set(result.get("regressions", {})) != {"malformed", "missing-chunk"}:
+        return False
     return all(c["decoder"]["exit_code"] == 0 and c["pixels"]["passed"] and c["preview"]["passed"] for c in result["cases"].values()) and all(c["passed"] for c in result["regressions"].values())
 
 
