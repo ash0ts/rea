@@ -26,7 +26,6 @@ def _():
     for _package, _pin in {"marimo": "0.25.1", "wandb": "0.31.0", "pillow": "13.0.0"}.items():
         if _version(_package) != _pin:
             raise RuntimeError(f"This notebook requires {_package}=={_pin}; runtime has {_version(_package)}. Restore the saved dependency pins before running it.")
-
     return Image, ImageChops, Path, io, json, mo, wandb
 
 
@@ -54,7 +53,7 @@ def _(mo):
 @app.cell
 def _(Path, json, mo, wandb):
     # Replaced with a committed immutable version by publish_comparison.py.
-    comparison_ref = "UNPUBLISHED"
+    comparison_ref = "wandb/rea-showcase/recovery-aa7c373605fd-comparison:v0"
     mo.stop(comparison_ref == "UNPUBLISHED", mo.callout("Recorded comparison has not been published yet.", kind="warn"))
     api = wandb.Api()
     comparison_root = Path(api.artifact(comparison_ref).download())
@@ -99,8 +98,9 @@ def _(choose_case, json, mo, reference_root, selected):
     expected = json.loads((original / "expected.json").read_text())
     frame = mo.ui.slider(0, expected["frame_count"] - 1, step=1, value=0, show_value=True, label="Frame (includes hidden frames)")
     layer = mo.ui.dropdown({f"Layer {i} · opacity {opacity}": i for i, opacity in enumerate(expected["layer_opacities"])}, value=f"Layer 0 · opacity {expected['layer_opacities'][0]}", label="Original layer")
-    mo.hstack([frame, layer], justify="start", gap=2)
-    return expected, frame, layer, original
+    animate = mo.ui.checkbox(value=False, label="Play recorded animation")
+    mo.hstack([frame, layer, animate], justify="start", gap=2, wrap=True)
+    return animate, expected, frame, layer, original
 
 
 @app.cell
@@ -108,6 +108,7 @@ def _(
     Image,
     ImageChops,
     Path,
+    animate,
     choose_case,
     expected,
     frame,
@@ -116,16 +117,20 @@ def _(
     layer,
     mo,
     original,
+    paired,
     recovered_roots,
+    selected,
 ):
     def display_image(path):
-        return mo.image(Image.open(path).resize((expected["width"] * 10, expected["height"] * 10), Image.Resampling.NEAREST))
+        return mo.image(Image.open(path).resize((expected["width"] * 10, expected["height"] * 10), Image.Resampling.NEAREST), width=expected["width"] * 10, alt=f"Recorded frame {frame.value}")
 
     def animation(folder, names, order, fps):
+        if not animate.value:
+            return mo.md("Playback paused. The image below follows the frame slider.")
         buffer = io.BytesIO()
         frames = [Image.open(folder / names[i]).convert("RGBA").resize((expected["width"] * 10, expected["height"] * 10), Image.Resampling.NEAREST) for i in order]
         frames[0].save(buffer, format="PNG", save_all=True, append_images=frames[1:], duration=1000 / fps, loop=0, disposal=0, blend=0)
-        return mo.image(buffer.getvalue(), alt="Recorded animation playback")
+        return mo.image(buffer.getvalue(), width=expected["width"] * 10, alt="Recorded animation playback")
 
     original_names = [f"frame-{i:03}.png" for i in range(expected["frame_count"])]
     cards = [mo.vstack([mo.md("### Original Piskel renderer"), animation(original, original_names, expected["playback_order"], expected["fps"]), display_image(original / original_names[frame.value])])]
@@ -150,8 +155,13 @@ def _(
                 _changed = sum(a != b for a, b in zip(_left.get_flattened_data(), _right.get_flattened_data()))
                 _mask = Image.new("RGB", _left.size)
                 _mask.putdata([(225, 29, 72) if any(pixel) else (241, 245, 249) for pixel in _diff.get_flattened_data()])
-                differences.append(mo.vstack([mo.md(f"**{arm} pixel difference:** {_changed} changed RGBA pixels (pink includes alpha-only changes)"), mo.image(_mask.resize((_left.width * 10, _left.height * 10), Image.Resampling.NEAREST))]))
-            cards.append(mo.vstack([mo.md(f"### {arm.upper()} recovery"), animation(_folder, _metadata["frames"], _metadata["playback_order"], _metadata["fps"]), display_image(_candidate)]))
+                differences.append(mo.vstack([mo.md(f"**{arm} pixel difference:** {_changed} changed RGBA pixels (pink includes alpha-only changes)"), mo.image(_mask.resize((_left.width * 10, _left.height * 10), Image.Resampling.NEAREST), width=_left.width * 10, alt=f"{arm} RGBA difference mask for frame {frame.value}")]))
+            _result = selected if arm == "rea" else paired
+            _check = ((_result or {}).get("checker") or {}).get("cases", {}).get(choose_case.value, {})
+            _exit_code = _check.get("decoder", {}).get("exit_code")
+            _status = mo.md(f"Pixels: **{_check.get('pixels', {}).get('passed', 'unavailable')}** · preview: **{_check.get('preview', {}).get('passed', 'unavailable')}**")
+            _notice = [mo.callout(f"Decoder exited {_exit_code}. These are partial output files retained by the independent checker, not a completed recovery.", kind="warn")] if _exit_code not in (None, 0) else []
+            cards.append(mo.vstack([mo.md(f"### {arm.upper()} output"), _status, *_notice, animation(_folder, _metadata["frames"], _metadata["playback_order"], _metadata["fps"]), display_image(_candidate)]))
         except (OSError, ValueError, KeyError, IndexError) as _error:
             cards.append(mo.callout(f"{arm}: output could not be rendered: {_error}", kind="warn"))
     mo.vstack([mo.hstack(cards, wrap=True, align="start"), mo.md(f"{expected['width']} × {expected['height']} · {expected['fps']} FPS · hidden indices: {expected['hidden_frames']} · Animated PNG playback is a viewing aid; the checker uses exact PNG pixels and browser-clock timing."), mo.hstack(differences, wrap=True), mo.md("### Inspect an original layer"), display_image(original / f"layer-{layer.value}-{frame.value:03}.png")])

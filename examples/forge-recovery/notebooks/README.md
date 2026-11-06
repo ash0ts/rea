@@ -1,5 +1,19 @@
 # Two recorded-data notebooks
 
+The completed showcase uses
+`wandb/rea-showcase/recovery-aa7c373605fd-comparison:v0`: all 24 scheduled attempts,
+5/12 baseline passes and 9/12 REA-available passes under the uniform corrected
+browser check. One baseline judgment is unavailable. Original results remain
+intact. These counts describe this small exercise and do not establish a general
+REA advantage.
+
+The private [recovery notebook](https://forge.coreweave.com/notebooks/Tm90ZWJvb2s6MTUyNzM%3D)
+and [comparison notebook](https://forge.coreweave.com/notebooks/Tm90ZWJvb2s6MTUyNzQ%3D)
+were saved and read back as native source artifacts, then verified in separate
+fresh Forge runtimes. Verification receipts retain the source hashes, package
+versions, runtime IDs, screenshots and unchanged inference ledger. The
+[walkthrough](WALKTHROUGH.md) links the final native report and saved workspace.
+
 `recover_animation.py` reconstructs the visible animation beside the original,
 offers a frame scrubber, original-layer inspection and exact RGBA differences, and
 links the selected attempt to Agent Lens and its run artifacts. Its default is the
@@ -16,6 +30,11 @@ The shared source of every displayed score is the frozen comparison artifact.
 Playback is synthesized from recorded PNGs, never by executing a submitted decoder
 inside a credentialed notebook. Animated PNG playback preserves translucent layers and is a viewing aid, while correctness
 comes from exact PNG comparisons and the isolated browser-clock checker.
+Playback starts paused; the reader can enable animation or inspect static frames
+with the slider.
+Frames, animation and difference masks use explicit display widths to preserve
+their integer-scaled pixel sizes; single-layer images do not stretch across the
+full notebook width.
 
 ```sh
 uv sync --extra forge --extra notebooks --extra test
@@ -37,7 +56,8 @@ standalone `.py` attachment is not equivalent to a saved Forge notebook.
 
 Dependencies are pinned in PEP 723 metadata. Opening a notebook or changing a
 selection only downloads recorded artifacts; it makes no inference requests.
-Hosted verification is bounded by the experiment's separate $20 reservation.
+Record hosted runtime launches and termination receipts against the separate
+notebook allocation. Runtime reservations are estimates, not settled billing.
 
 Visual contract: the recovery view answers whether a reusable decoder reconstructs
 the recorded pixels and playback; the comparison view answers what differed in
@@ -83,6 +103,22 @@ versions. Each attempt artifact contains a snapshot taken before its own upload
 completed, so that snapshot can still say `upload_status: pending`. The final
 comparison joins the completed upload receipt without rewriting that historical
 snapshot. Recorded artifact-download hash checks are included in the comparison.
+The comparison also retains the native run-summary repair for the VM-interrupted
+baseline: the old uploader displayed a missing judgment as false. Its before/after
+receipt records the correction to unavailable and verifies that the original
+attempt file is unchanged. The current uploader preserves this distinction.
+
+After all 24 attempts finish, run `verify_trace_joins.py --root .local/experiment`
+before publishing the comparison. It matches each returned tool event to its
+stored Agent Lens span and message response, including tool-call ID, parent turn,
+trace identity, tool name, arguments and delivered response content. JSON payloads
+are compared after parsing the SDK's serialized representation. Interrupted or
+unanswered calls remain explicit.
+The comparison retains this receipt; matching identifiers does not validate the
+tool's substantive answer or replace the independent animation checks.
+The complete saved provider messages remain in each attempt artifact. The frozen
+Conversation SDK message projection displays ordinary text and tool calls; returned
+provider reasoning fields are preserved in `messages.json`, not that projection.
 
 
 ## Uniform correction of recorded playback checks
@@ -171,3 +207,31 @@ The `raw/` directory extracted from the private evidence archive can replace
 claim boundaries and input SHA-256 hashes. The animated PNG is an inspection aid;
 the static nine-frame audit is its reduced-motion alternative. Screenshots are
 captured separately from the native product and retain their originals and crops.
+
+For a complete comparison, `build_final_review_media.py` reads the immutable
+`comparison.json` after the uniform preview correction. It requires all 24 uploaded,
+cleaned-up records and reuses the dashboard's metric projection. It emits final
+outcomes, original-versus-corrected judgments, per-family criteria, paired resources
+and actual REA use, with CSV values and source hashes:
+
+```sh
+.local/review-media-venv/bin/python notebooks/build_final_review_media.py \
+  --comparison .local/experiment/comparison/comparison.json \
+  --output .local/final-review-media
+```
+
+The recovery notebook labels partial images left by a decoder that exited with an
+error. The comparison explains that ordered exact matching can fail from wrong
+pixels as well as wrong sequence. Neither display changes an agent result.
+
+`build_partial_output_figure.py --root .local --output .local/final-review-media`
+reproduces the retained translucent-layer failure example: original pixels,
+partial output and an exact RGBA difference mask. Its assertions bind the figure
+to the recorded attempt and frame; it never executes the failed decoder.
+
+`build_output_gallery.py --root .local --comparison PATH --output PATH` shows one
+retained unseen frame from every scored attempt beside its original. It labels
+the complete corrected checker outcome separately, warns about partial output,
+and leaves missing images visibly missing. A representative frame is an
+illustration, not a replacement for the full pixel and playback checks. Its
+JSON receipt retains each image path and hash.

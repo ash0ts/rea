@@ -39,6 +39,8 @@ def snapshot(root: Path) -> dict:
     else:
         rows = [read(p) for spec in experiment["attempts"]
                 if (p := root / "attempts" / spec["attempt_id"] / "result.json").exists()]
+        if any("total_elapsed_seconds" not in row for row in rows):
+            raise ValueError("An attempt is still running or interrupted before finalization; reconcile the controller before publishing a snapshot")
         basis = "Provisional original checks; uniform corrected preview verification pending"
         source = {"original_result_sha256": {r["attempt_id"]: sha(root / "attempts" / r["attempt_id"] / "result.json") for r in rows}}
     expected = {r["attempt_id"] for r in experiment["attempts"]}
@@ -76,6 +78,7 @@ def measurements(row: dict, usage: dict) -> dict:
         "agent_lens_url": row.get("lens_url"),
         "source_artifact": (row.get("publication") or {}).get("artifact"),
         "cleanup_status": row.get("cleanup_status"), "upload_status": row.get("upload_status")}
+    result["task_tokens_millions"] = result["task_tokens"] / 1e6 if result["task_tokens"] is not None else None
     for kind in ("visible", "heldout"):
         case = checker.get("cases", {}).get(kind, {})
         result.update({f"{kind}/{k}": int(v) if isinstance(v, bool) else None for k, v in case.get("pixels", {}).get("criteria", {}).items()})
@@ -171,16 +174,19 @@ def publish(root: Path) -> dict:
         "This small source-withheld Piskel exercise cannot establish general superiority. "
         f"Snapshot `{value['snapshot_id']}`; immutable source `{progress['artifact']}`.")
     if not value["final"]:
-        intro += "\n\n**Incomplete:** the shared local Docker VM is unavailable. Native notebook drafts exist; final results and fresh-runtime verification remain pending."
+        intro += "\n\n**Incomplete:** final comparison publication and fresh-runtime notebook verification remain pending. See each attempt record and the retained infrastructure events for its execution status."
     planned_per_arm = max(Counter(spec["arm"] for spec in value["planned"]).values())
+    resource_height = max(10, count)
     panels = [
         # The native view clipped grouped counts at the individual 0/1 range. Keep the full planned denominator visible on the axis.
         wr.BarPlot(title=f"Recorded attempts / checks available / passed — {planned_per_arm} planned per arm", metrics=["recorded_attempt", "checks_available", "passed_all_checks"], groupby=wr.Config("arm"), groupby_aggfunc="sum", groupby_rangefunc="none", range_x=(0, planned_per_arm), title_x="Attempts", layout=wr.Layout(x=0,y=0,w=24,h=8)),
-        wr.BarPlot(title="Total task tokens per recorded attempt", metrics=["task_tokens"], max_runs_to_show=24, max_bars_to_show=24, layout=wr.Layout(x=0,y=8,w=12,h=10)),
-        wr.BarPlot(title="Agent elapsed seconds per recorded attempt", metrics=["agent_seconds"], max_runs_to_show=24, max_bars_to_show=24, layout=wr.Layout(x=12,y=8,w=12,h=10)),
-        wr.BarPlot(title="Cost estimate / reservation (USD)", metrics=["cost_estimate_or_reservation_usd"], max_runs_to_show=24,max_bars_to_show=24,layout=wr.Layout(x=0,y=18,w=12,h=10)),
-        wr.BarPlot(title="Actual returned REA calls, including errors", metrics=["rea_returned_calls"], max_runs_to_show=24,max_bars_to_show=24,layout=wr.Layout(x=12,y=18,w=12,h=10)),
-        wr.RunComparer(diff_only="split", layout=wr.Layout(x=0,y=28,w=24,h=12)),
+        wr.BarPlot(title="Total task tokens per recorded attempt (millions)", metrics=["task_tokens_millions"], max_runs_to_show=24, max_bars_to_show=24, layout=wr.Layout(x=0,y=8,w=12,h=resource_height)),
+        wr.BarPlot(title="Agent elapsed seconds per recorded attempt", metrics=["agent_seconds"], max_runs_to_show=24, max_bars_to_show=24, layout=wr.Layout(x=12,y=8,w=12,h=resource_height)),
+        wr.BarPlot(title="Cost estimate / reservation (USD)", metrics=["cost_estimate_or_reservation_usd"], max_runs_to_show=24,max_bars_to_show=24,layout=wr.Layout(x=0,y=8+resource_height,w=12,h=resource_height)),
+        wr.BarPlot(title="Actual returned REA calls, including errors", metrics=["rea_returned_calls"], max_runs_to_show=24,max_bars_to_show=24,layout=wr.Layout(x=12,y=8+resource_height,w=12,h=resource_height)),
+        wr.BarPlot(title="Local container CPU seconds", metrics=["agent_cpu_seconds"], max_runs_to_show=24,max_bars_to_show=24,layout=wr.Layout(x=0,y=8+2*resource_height,w=12,h=resource_height)),
+        wr.BarPlot(title="Local process-family peak memory (MiB)", metrics=["agent_peak_mib"], max_runs_to_show=24,max_bars_to_show=24,layout=wr.Layout(x=12,y=8+2*resource_height,w=12,h=resource_height)),
+        wr.RunComparer(diff_only="split", layout=wr.Layout(x=0,y=8+3*resource_height,w=24,h=12)),
     ]
     runset = wr.Runset(entity=value["entity"], project=value["project"], name="Recorded scored attempts only", filters=config_filter,
         pinned_columns=["run:name"], visible_columns=["config:arm", "config:fixture", "config:repetition", "summary:task_status", "summary:passed_all_checks", "summary:agent_lens_url", "summary:source_artifact"])
@@ -193,7 +199,7 @@ def publish(root: Path) -> dict:
     write(destination / "publishing.json", progress)
     workspace = ws.Workspace(entity=value["entity"], project=value["project"], name=f"REA recovery — {count} of 24 recorded",
         sections=[ws.Section(name="Read this comparison", panels=[wr.MarkdownPanel(markdown=intro,layout=wr.Layout(x=0,y=0,w=24,h=12))],is_open=True,layout_settings=ws.SectionLayoutSettings(columns=1,rows=1)),
-                  ws.Section(name="Recorded outcomes and resource use",panels=panels,is_open=True,layout_settings=ws.SectionLayoutSettings(columns=2,rows=3))],
+                  ws.Section(name="Recorded outcomes and resource use",panels=panels,is_open=True,layout_settings=ws.SectionLayoutSettings(columns=2,rows=4))],
         runset_settings=ws.RunsetSettings(filters=config_filter))
     workspace.save()
     progress["workspace_api_url"] = workspace.url

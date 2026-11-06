@@ -5,6 +5,7 @@
 #     "wandb==0.31.0",
 # ]
 # ///
+
 import marimo
 
 __generated_with = "0.25.1"
@@ -42,7 +43,7 @@ def _(mo):
 
 @app.cell
 def _(Path, json, mo, wandb):
-    comparison_ref = "UNPUBLISHED"
+    comparison_ref = "wandb/rea-showcase/recovery-aa7c373605fd-comparison:v0"
     mo.stop(comparison_ref == "UNPUBLISHED", mo.callout("Recorded comparison has not been published yet.", kind="warn"))
     api = wandb.Api()
     artifact_root = Path(api.artifact(comparison_ref).download())
@@ -82,7 +83,7 @@ def _(mo, rows):
             criterion_rows.append({"case": _row["fixture"], "arm": _row["arm"], "repetition": _row["repetition"], "input": _kind,
                 **{key: _checks.get("pixels", {}).get("criteria", {}).get(key) for key in ("pixels", "frame_order", "dimensions", "fps", "hidden_frames", "sprite_sheet")},
                 "preview": _checks.get("preview", {}).get("passed"), "status": _row["task_status"]})
-    mo.vstack([mo.md("## Which behavior was recovered?"), mo.md("`true` passes, `false` fails, and blank is unavailable. Pixels and frame ordering are separate criteria. Preview covers scrubbing, ordered playback at the recorded FPS, and download."), mo.ui.table(criterion_rows, selection=None, page_size=24)])
+    mo.vstack([mo.md("## Which behavior was recovered?"), mo.md("`true` passes, `false` fails, and blank is unavailable. Pixels compares the unordered collection of RGBA buffers. Frame order requires an exact image match at each reference position, so wrong pixels can fail both columns. Dimensions and FPS compare manifest values; the ordered image comparison also checks actual PNG dimensions. Preview covers scrubbing, ordered playback at the recorded FPS, and download."), mo.ui.table(criterion_rows, selection=None, page_size=24)])
     return
 
 
@@ -96,7 +97,7 @@ def _(data, mo, rows):
         "upload": r.get("upload_status"), "Evidence export": r.get("evidence_export", {}).get("status")} for r in rows]
     choose_failure = mo.ui.dropdown({r["attempt_id"]: r["attempt_id"] for r in rows}, value=rows[0]["attempt_id"] if rows else None, label="Inspect one attempt")
     mo.vstack([mo.md("## Every attempt, including failures"), mo.md("Tool counts come from returned tool-call events, including returned errors. Interrupted calls may appear only in Agent Lens. Zero REA calls means the treatment agent used its ordinary tools without invoking REA; blank means the event log was unavailable."), mo.ui.table(navigation, selection=None, page_size=24), choose_failure])
-    return choose_failure,
+    return (choose_failure,)
 
 
 @app.cell
@@ -111,7 +112,7 @@ def _(data, mo):
     def _recorded_json(value):
         return mo.json(value) if value is not None else mo.md("Not recorded in this artifact.")
 
-    mo.vstack([mo.md("## Limits on interpretation"), mo.md("No replacement retries of scored attempts. Qualification uses separate artwork and is excluded from the scored denominator. REA availability is the treatment; actual use can be inspected in each conversation. Remote model CPU and memory are unavailable. Local peak memory covers the container process family, while controller peak memory is a process-lifetime high-water mark. Each attempt starts a fresh container and analysis session; host filesystem and image caches were not reset. The local host was shared; background contention was not measured. Six cases and two repetitions cannot establish population-level gains."), mo.accordion({"Original checker records": _recorded_json(data.get("original_summary")), "Uniform preview recheck": _recorded_json(data.get("preview_recheck")), "Infrastructure events": mo.json(data.get("infrastructure_events", [])), "Frozen controller source": _recorded_json(data.get("frozen_controller_source")), "Frozen execution ledger": mo.json(data["ledger"]), "Qualification gate": mo.json(data["qualification"]), "Qualification attempts": mo.json(data["qualification_attempts"]), "Earlier qualification failures (original records)": mo.json(data["prior_qualification"]), "Cleanup reconciliations": mo.json(data["cleanup_reconciliations"]), "Artifact integrity readback": mo.json(data.get("artifact_readbacks", [])), "Provenance": mo.json(data["inputs"])})])
+    mo.vstack([mo.md("## Limits on interpretation"), mo.md("No replacement retries of scored attempts. Qualification uses separate artwork and is excluded from the scored denominator. REA availability is the treatment; actual use can be inspected in each conversation. Remote model CPU and memory are unavailable. Local peak memory covers the container process family, while controller peak memory is a process-lifetime high-water mark. Each attempt starts a fresh container and analysis session; host filesystem and image caches were not reset. The local host was shared; background contention was not measured. Six cases and two repetitions cannot establish population-level gains."), mo.accordion({"Original checker records": _recorded_json(data.get("original_summary")), "Uniform preview recheck": _recorded_json(data.get("preview_recheck")), "Native run summary repair": _recorded_json(data.get("native_run_summary_repair")), "Infrastructure events": mo.json(data.get("infrastructure_events", [])), "Frozen controller source": _recorded_json(data.get("frozen_controller_source")), "Frozen execution ledger": mo.json(data["ledger"]), "Qualification gate": mo.json(data["qualification"]), "Qualification attempts": mo.json(data["qualification_attempts"]), "Earlier qualification failures (original records)": mo.json(data["prior_qualification"]), "Cleanup reconciliations": mo.json(data["cleanup_reconciliations"]), "Artifact integrity readback": mo.json(data.get("artifact_readbacks", [])), "Full scored-artifact readback": mo.json(data.get("scored_artifact_readbacks", [])), "Model/tool ID reconciliation": _recorded_json(data.get("trace_join_verification")), "Provenance": mo.json(data["inputs"])})])
     return
 
 

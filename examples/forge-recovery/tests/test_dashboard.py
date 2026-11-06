@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -16,12 +17,14 @@ def dashboard():
 def test_dashboard_unknowns_do_not_become_zeros(dashboard):
     result = dashboard.measurements({'task_status':'timeout','usage':{'unknown_usage_requests':1,'input_tokens':100,'output_tokens':3},'checker':None,'agent_resources':None}, {})
     assert result['task_tokens'] is None
+    assert result['task_tokens_millions'] is None
     assert result['passed_all_checks'] is None
     assert result['checks_available'] == 0
     assert result['agent_cpu_seconds'] is None
     assert result['rea_returned_calls'] is None
     failed = dashboard.measurements({'task_status':'budget_stop','checker':{'passed':False},'usage':{'unknown_usage_requests':0,'input_tokens':100,'output_tokens':3}}, {'rea_returned_calls':0})
     assert failed['task_tokens'] == 103
+    assert failed['task_tokens_millions'] == 0.000103
     assert failed['passed_all_checks'] == 0
     assert failed['checks_available'] == 1
     assert failed['rea_returned_calls'] == 0
@@ -42,3 +45,14 @@ def test_dashboard_navigation_retains_unrun_attempts(dashboard):
     table=dashboard.navigation({'planned':planned,'attempts':[{'attempt_id':'a','task_status':'timeout'}]})
     assert '| baseline | 1 | timeout | Unavailable |' in table
     assert '| rea | 1 | Not run | Unavailable |' in table
+
+
+def test_dashboard_refuses_the_controllers_in_progress_result(dashboard, tmp_path):
+    # The controller persists a provisional failure value before starting work.
+    # It is not a completed outcome until finalization records elapsed time.
+    (tmp_path / 'experiment.json').write_text(json.dumps({'attempts': [{'attempt_id': 'active'}]}))
+    attempt = tmp_path / 'attempts' / 'active'
+    attempt.mkdir(parents=True)
+    (attempt / 'result.json').write_text(json.dumps({'task_status': 'infrastructure_failure', 'upload_status': 'pending'}))
+    with pytest.raises(ValueError, match='still running or interrupted before finalization'):
+        dashboard.snapshot(tmp_path)
