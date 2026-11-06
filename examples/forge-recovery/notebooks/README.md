@@ -77,3 +77,9 @@ not establish that a host restored them. Local notebook checks use the same pins
 
 [The walkthrough](WALKTHROUGH.md) follows the first independently correct treatment
 submission and its paired baseline, and states whether that agent actually used REA.
+
+The comparison artifact owns the final publication receipts and immutable attempt
+versions. Each attempt artifact contains a snapshot taken before its own upload
+completed, so that snapshot can still say `upload_status: pending`. The final
+comparison joins the completed upload receipt without rewriting that historical
+snapshot. Recorded artifact-download hash checks are included in the comparison.
