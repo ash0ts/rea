@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#     "marimo==0.25.2",
+#     "marimo==0.25.1",
 #     "wandb==0.31.0",
 #     "pillow==13.0.0",
 # ]
@@ -21,6 +21,11 @@ def _():
     import marimo as mo
     import wandb
     from PIL import Image, ImageChops
+    from importlib.metadata import version as _version
+
+    for _package, _pin in {"marimo": "0.25.1", "wandb": "0.31.0", "pillow": "13.0.0"}.items():
+        if _version(_package) != _pin:
+            raise RuntimeError(f"This notebook requires {_package}=={_pin}; runtime has {_version(_package)}. Restore the saved dependency pins before running it.")
 
     return Image, ImageChops, Path, io, json, mo, wandb
 

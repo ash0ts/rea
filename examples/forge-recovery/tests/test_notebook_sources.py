@@ -15,5 +15,5 @@ def test_recorded_notebooks_cannot_launch_the_paid_runner(name):
         if isinstance(node, ast.ImportFrom):
             assert not (node.module or "").startswith(("openai", "subprocess", "forge_recovery"))
     assert ":latest" not in source
-    assert 'marimo==0.25.2' in source
+    assert 'marimo==0.25.1' in source
     assert 'comparison_ref = ' in source

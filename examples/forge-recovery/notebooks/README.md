@@ -67,3 +67,9 @@ span and lists canonical Evidence IDs, provider, confidence, authority and
 limitations. Its artifact link opens the immutable version containing the complete
 `evidence/bundle.json`; the displayed summary does not replace that bundle. Pink
 pixel differences mark any changed RGBA channel, including alpha-only changes.
+
+A fresh hosted runtime was observed using marimo 0.25.1, W&B 0.31.0 and Pillow
+13.0.0, even when an earlier draft requested marimo 0.25.2. The sources now pin the
+observed compatible versions and check them before executing notebook cells.
+Verify actual package versions in the fresh runtime; source metadata alone does
+not establish that a host restored them. Local notebook checks use the same pins.
