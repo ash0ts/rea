@@ -172,8 +172,10 @@ def publish(root: Path) -> dict:
         f"Snapshot `{value['snapshot_id']}`; immutable source `{progress['artifact']}`.")
     if not value["final"]:
         intro += "\n\n**Incomplete:** the shared local Docker VM is unavailable. Native notebook drafts exist; final results and fresh-runtime verification remain pending."
+    planned_per_arm = max(Counter(spec["arm"] for spec in value["planned"]).values())
     panels = [
-        wr.BarPlot(title="Recorded attempts / checks available / passed — counts by arm", metrics=["recorded_attempt", "checks_available", "passed_all_checks"], groupby=wr.Config("arm"), groupby_aggfunc="sum", groupby_rangefunc="none", layout=wr.Layout(x=0,y=0,w=24,h=8)),
+        # The native view clipped grouped counts at the individual 0/1 range. Keep the full planned denominator visible on the axis.
+        wr.BarPlot(title=f"Recorded attempts / checks available / passed — {planned_per_arm} planned per arm", metrics=["recorded_attempt", "checks_available", "passed_all_checks"], groupby=wr.Config("arm"), groupby_aggfunc="sum", groupby_rangefunc="none", range_x=(0, planned_per_arm), title_x="Attempts", layout=wr.Layout(x=0,y=0,w=24,h=8)),
         wr.BarPlot(title="Total task tokens per recorded attempt", metrics=["task_tokens"], max_runs_to_show=24, max_bars_to_show=24, layout=wr.Layout(x=0,y=8,w=12,h=10)),
         wr.BarPlot(title="Agent elapsed seconds per recorded attempt", metrics=["agent_seconds"], max_runs_to_show=24, max_bars_to_show=24, layout=wr.Layout(x=12,y=8,w=12,h=10)),
         wr.BarPlot(title="Cost estimate / reservation (USD)", metrics=["cost_estimate_or_reservation_usd"], max_runs_to_show=24,max_bars_to_show=24,layout=wr.Layout(x=0,y=18,w=12,h=10)),
@@ -190,8 +192,8 @@ def publish(root: Path) -> dict:
     progress["report_api_url"] = report.url
     write(destination / "publishing.json", progress)
     workspace = ws.Workspace(entity=value["entity"], project=value["project"], name=f"REA recovery — {count} of 24 recorded",
-        sections=[ws.Section(name="Read this comparison", panels=[wr.MarkdownPanel(markdown=intro,layout=wr.Layout(x=0,y=0,w=24,h=12))],is_open=True),
-                  ws.Section(name="Recorded outcomes and resource use",panels=panels,is_open=True)],
+        sections=[ws.Section(name="Read this comparison", panels=[wr.MarkdownPanel(markdown=intro,layout=wr.Layout(x=0,y=0,w=24,h=12))],is_open=True,layout_settings=ws.SectionLayoutSettings(columns=1,rows=1)),
+                  ws.Section(name="Recorded outcomes and resource use",panels=panels,is_open=True,layout_settings=ws.SectionLayoutSettings(columns=2,rows=3))],
         runset_settings=ws.RunsetSettings(filters=config_filter))
     workspace.save()
     progress["workspace_api_url"] = workspace.url

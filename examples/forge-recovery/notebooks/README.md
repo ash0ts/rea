@@ -137,9 +137,37 @@ project is private, reads back both saved views, verifies the snapshot filter
 selects exactly its recorded attempts, and compares every metric against source.
 Browser verification remains a separate acceptance step.
 
+The count plot uses the planned attempts per arm as its explicit axis maximum.
+Native rendering otherwise clipped grouped counts at the individual 0/1 range,
+even though API readback contained the correct sums. Inspect plotted marks as well
+as stored metrics. The workspace uses one column for the introduction and two for
+metric panels; retain before/after view definitions when repairing a saved display.
+
 The real initial publication exposed empty server summaries after summary-only
 SDK runs. The publisher now commits derived summaries through the Public API and
 verifies them using a fresh client. The original campaign runs are not modified.
 If publication is interrupted, its `publishing.json` retains created run/view IDs;
 inspect and reconcile those resources before retrying. Saved source snapshots and
 readback receipts remain under `dashboards/<snapshot-id>/` for artifact publication.
+
+## Figures for the interim evidence review
+
+`build_review_media.py` reproduces the twelve figures for the retained four-attempt
+snapshot, including every planned slot, all nine unseen RGBA comparisons, the clock
+diagnostic, resources and actual REA calls. It reads recorded files and never runs
+submitted programs or inference. This is a generator for this specific interim
+snapshot, not a final 24-attempt analysis. Its assertions reject different coverage.
+
+```sh
+uv venv .local/review-media-venv
+uv pip install --python .local/review-media-venv/bin/python \
+  -r notebooks/review-media-requirements.txt
+.local/review-media-venv/bin/python notebooks/build_review_media.py \
+  --root .local --output .local/review-media
+```
+
+The `raw/` directory extracted from the private evidence archive can replace
+`.local` as the input root. Outputs include PNGs, editable SVGs, CSV/JSON tables,
+claim boundaries and input SHA-256 hashes. The animated PNG is an inspection aid;
+the static nine-frame audit is its reduced-motion alternative. Screenshots are
+captured separately from the native product and retain their originals and crops.
