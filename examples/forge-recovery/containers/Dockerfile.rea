@@ -1,0 +1,18 @@
+FROM rea-forge-recovery-base:v1 AS build
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN npm install --global npm@11.16.0
+WORKDIR /opt/rea
+COPY rea-source.tar /tmp/rea-source.tar
+RUN tar -xf /tmp/rea-source.tar -C /opt/rea && rm /tmp/rea-source.tar \
+    && npm ci \
+    && npm run build:cached \
+    && npm pack --ignore-scripts --pack-destination /tmp
+
+FROM rea-forge-recovery-base:v1
+COPY --from=build /tmp/rea-agents-*.tgz /tmp/rea.tgz
+COPY --from=build /opt/rea/package-lock.json /opt/rea/package-lock.json
+WORKDIR /opt/rea
+RUN tar -xzf /tmp/rea.tgz --strip-components=1 -C /opt/rea \
+    && npm ci --omit=dev --ignore-scripts && rm /tmp/rea.tgz
+WORKDIR /work
+ENV REA_MCP_TOOL_FAMILIES="electron,application,session" REA_MCP_INPUT_SCHEMA_PROFILE="compact"
