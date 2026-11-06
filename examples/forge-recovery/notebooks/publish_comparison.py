@@ -1,0 +1,56 @@
+"""Freeze the complete comparison and pin both checked-in notebook sources."""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import wandb
+
+from forge_recovery.common import read_json, write_json
+from forge_recovery.experiment import summarize
+from forge_recovery.telemetry import credentials
+
+
+def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
+    sources = [Path(__file__).parent / name for name in ("recover_animation.py", "compare_recovery.py")]
+    if any('comparison_ref = "UNPUBLISHED"' not in source.read_text() for source in sources):
+        raise ValueError("Notebooks already pinned; do not create another comparison or silently replace source")
+    experiment = read_json(root / "experiment.json")
+    summary = summarize(root)
+    if summary["recorded_scored"] != 24:
+        raise ValueError("Publish only the complete frozen comparison; missing attempts are not zeros")
+    if any(r.get("upload_status") != "complete" for r in summary["attempts"]):
+        raise ValueError("Retry failed artifact uploads before publishing; do not rerun agents")
+    destination = root / "comparison"
+    destination.mkdir(exist_ok=True)
+    value = {"summary": summary, "inputs": read_json(root / "inputs-publication.json"),
+        "qualification": read_json(root / "qualification.json"), "ledger": read_json(ledger),
+        "experiment": experiment, "prior_qualification": [
+            read_json(result) for prior in prior_roots for result in sorted((prior / "attempts").glob("*/result.json"))
+        ]}
+    write_json(destination / "comparison.json", value)
+    credentials()
+    entity = experiment["entity"]
+    with wandb.init(entity=entity, project="rea-showcase", job_type="comparison", dir=str(root),
+                    settings=wandb.Settings(disable_git=True, disable_code=True, console="off")) as run:
+        artifact = wandb.Artifact(experiment["experiment_id"] + "-comparison", type="recovery-comparison")
+        artifact.add_file(str(destination / "comparison.json"), name="comparison.json")
+        logged = run.log_artifact(artifact).wait()
+        reference = f"{entity}/rea-showcase/{logged.name}"
+        receipt = {"artifact": reference, "digest": logged.digest, "run_url": run.url}
+    # Preserve the source of the exact immutable artifact consumed by each notebook.
+    for source in sources:
+        text = source.read_text()
+        source.write_text(text.replace('comparison_ref = "UNPUBLISHED"', f'comparison_ref = "{reference}"'))
+    write_json(root / "comparison-publication.json", receipt)
+    return receipt
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument("--ledger", type=Path, required=True)
+    parser.add_argument("--prior-root", type=Path, action="append", default=[])
+    args = parser.parse_args()
+    print(json.dumps(publish(args.root, args.ledger, args.prior_root), indent=2))
