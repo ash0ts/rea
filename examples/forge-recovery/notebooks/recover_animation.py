@@ -60,6 +60,7 @@ def _(Path, json, mo, wandb):
     comparison_root = Path(api.artifact(comparison_ref).download())
     comparison = json.loads((comparison_root / "comparison.json").read_text())
     attempts = comparison["summary"]["attempts"]
+    mo.md(f"Score basis: {comparison['summary'].get('score_basis', 'Original independent checker')}. Original records and any uniform correction are available in the comparison notebook.")
     reference_root = Path(api.artifact(comparison["inputs"]["artifact"]).download())
     return api, attempts, reference_root
 
@@ -70,7 +71,7 @@ def _(attempts, mo):
     mo.stop(not rea_rows, mo.callout("No scored attempts recorded.", kind="warn"))
     first_success = next((r for r in rea_rows if r.get("checker", {}).get("passed")), None)
     initial = first_success or rea_rows[0]
-    choices = {f"{r['fixture']} · repetition {r['repetition']} · {r['task_status']}": r["attempt_id"] for r in rea_rows}
+    choices = {f"{r['fixture']} · repetition {r['repetition']} · checks {r.get('checker', {}).get('passed', 'unavailable')} · {r['task_status']}": r["attempt_id"] for r in rea_rows}
     choose_attempt = mo.ui.dropdown(choices, value=next(k for k, v in choices.items() if v == initial["attempt_id"]), label="Paired attempt")
     mo.vstack([choose_attempt, mo.md("Default: first successful REA attempt in manifest order." if first_success else "No REA attempt passed every check; showing the first recorded failure explicitly.")])
     return (choose_attempt,)
