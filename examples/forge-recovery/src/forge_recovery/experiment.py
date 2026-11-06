@@ -248,15 +248,18 @@ async def execute(root: Path, prepared: Path, entity: str, phase: str, ledger_pa
             qualification = read_json(root / "qualification.json")
             if not qualification["qualified"]:
                 raise RuntimeError("Qualification failed; do not launch scored attempts")
-        rows = []
         with retain_images(config, root):
-            for spec in config["qualification" if phase == "qualification" else "attempts"]:
-                rows.append(await attempt(config, spec, root, Ledger(ledger_path)))
-                if rows[-1].get("cleanup_status") != "complete":
-                    raise RuntimeError("Cleanup requires retry before further execution")
-        if phase == "qualification":
-            qualified = all(r.get("task_status") in ("success", "task_failure", "budget_stop", "timeout") and r.get("lens_status") == "verified" and r.get("upload_status") == "complete" and r.get("evidence_export", {}).get("status") in ("complete", "not_applicable") and any(e["kind"] == "tool" for e in read_json(root / "attempts" / r["attempt_id"] / "events.json")) for r in rows)
-            write_json(root / "qualification.json", {"qualified": qualified, "attempts": [r["attempt_id"] for r in rows]})
+            for current in (("qualification", "scored") if phase == "all" else (phase,)):
+                rows = []
+                for spec in config["qualification" if current == "qualification" else "attempts"]:
+                    rows.append(await attempt(config, spec, root, Ledger(ledger_path)))
+                    if rows[-1].get("cleanup_status") != "complete":
+                        raise RuntimeError("Cleanup requires retry before further execution")
+                if current == "qualification":
+                    qualified = all(r.get("task_status") in ("success", "task_failure", "budget_stop", "timeout") and r.get("lens_status") == "verified" and r.get("upload_status") == "complete" and r.get("evidence_export", {}).get("status") in ("complete", "not_applicable") and any(e["kind"] == "tool" for e in read_json(root / "attempts" / r["attempt_id"] / "events.json")) for r in rows)
+                    write_json(root / "qualification.json", {"qualified": qualified, "attempts": [r["attempt_id"] for r in rows]})
+                    if phase == "all" and not qualified:
+                        raise RuntimeError("Qualification failed; no scored attempts launched")
         return summarize(root)
 
 

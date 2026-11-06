@@ -24,6 +24,8 @@ def main() -> None:
         command.add_argument("--prepared", type=Path, required=True)
         command.add_argument("--entity", required=True)
         command.add_argument("--ledger", type=Path, required=True, help="Shared durable ledger across all campaigns; never reset it to retry")
+        if name == "qualify":
+            command.add_argument("--run-scored", action="store_true", help="Continue into scored attempts after qualification, retaining images across both phases")
     summary = commands.add_parser("summarize")
     summary.add_argument("--root", type=Path, required=True)
     args = parser.parse_args()
@@ -38,8 +40,9 @@ def main() -> None:
         print(json.dumps(summarize(args.root), indent=2))
     else:
         from .experiment import execute
+        phase = "all" if args.command == "qualify" and args.run_scored else "qualification" if args.command == "qualify" else "scored"
         result = asyncio.run(execute(args.root.resolve(), args.prepared.resolve(), args.entity,
-            "qualification" if args.command == "qualify" else "scored", args.ledger.resolve()))
+            phase, args.ledger.resolve()))
         print(json.dumps({key: value for key, value in result.items() if key != "attempts"}, indent=2))
 
 

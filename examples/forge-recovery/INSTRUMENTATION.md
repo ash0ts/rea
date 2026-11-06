@@ -94,3 +94,9 @@ prompt tokens. Before scoring, both arms use a manifest-recorded 1 MiB serialize
 request bound. This limits controller payload size, not model tokens; Forge owns
 token-context admission. No history is silently truncated. The ledger still
 reserves the full published model context plus the configured output allowance.
+
+For one continuous campaign, use `qualify --run-scored` with the same arguments as
+`qualify`. One controller lock and one image-retention scope cover qualification
+and all scored attempts. The qualification gate is saved and checked before any
+scored request; failure still closes every owned retention container. This avoids
+an unreferenced-image gap between separate command invocations on a shared daemon.

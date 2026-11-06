@@ -115,3 +115,39 @@ def test_image_retention_closes_every_resource_after_partial_start(harness):
             pytest.fail("must not begin attempts")
     assert len(box.instances) == 2
     assert all(b.closed and b.container_id is None for b in box.instances)
+
+
+@pytest.mark.parametrize("qualifies", [True, False])
+def test_combined_campaign_retains_images_across_gate_and_closes_on_failure(tmp_path, monkeypatch, qualifies):
+    from contextlib import contextmanager
+    root = tmp_path / "experiment"
+    root.mkdir()
+    write_json(root / "inputs-publication.json", {"artifact": "test/input:v0"})
+    config = {"qualification": [{"attempt_id": "q", "phase": "qualification"}], "attempts": [{"attempt_id": "s", "phase": "scored"}]}
+    lifecycle = []
+    async def freeze(*_): return config
+    @contextmanager
+    def retain(*_):
+        lifecycle.append("retain")
+        try: yield
+        finally: lifecycle.append("release")
+    async def attempt(config, spec, root, ledger):
+        assert "release" not in lifecycle
+        if spec["phase"] == "scored":
+            assert read_json(root / "qualification.json")["qualified"]
+        lifecycle.append(spec["attempt_id"])
+        write_json(root / "attempts" / spec["attempt_id"] / "events.json", [{"kind": "tool"}])
+        return {"attempt_id": spec["attempt_id"], "task_status": "timeout" if qualifies else "infrastructure_failure", "lens_status": "verified", "upload_status": "complete", "evidence_export": {"status": "complete"}, "cleanup_status": "complete"}
+    monkeypatch.setattr(experiment, "freeze", freeze)
+    monkeypatch.setattr(experiment, "initialize", lambda *_: None)
+    monkeypatch.setattr(experiment, "retain_images", retain)
+    monkeypatch.setattr(experiment, "attempt", attempt)
+    monkeypatch.setattr(experiment, "summarize", lambda *_: {})
+    invocation = experiment.execute(root, tmp_path, "test", "all", tmp_path / "ledger.json")
+    if qualifies:
+        asyncio.run(invocation)
+        assert lifecycle == ["retain", "q", "s", "release"]
+    else:
+        with pytest.raises(RuntimeError, match="no scored attempts"):
+            asyncio.run(invocation)
+        assert lifecycle == ["retain", "q", "release"]
