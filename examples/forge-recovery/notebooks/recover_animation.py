@@ -71,11 +71,14 @@ def _(Path, api, attempts, choose_attempt, mo):
     paired = next((r for r in attempts if r["fixture"] == selected["fixture"] and r["repetition"] == selected["repetition"] and r["arm"] == "baseline"), None)
     choose_case = mo.ui.radio(["visible", "heldout"], value="heldout", label="Independent check input", inline=True)
     recovered_roots = {}
+    artifact_urls = {}
     for _row in [selected, paired]:
         if _row and _row.get("publication"):
-            recovered_roots[_row["arm"]] = Path(api.artifact(_row["publication"]["artifact"]).download())
+            _artifact = api.artifact(_row["publication"]["artifact"])
+            recovered_roots[_row["arm"]] = Path(_artifact.download())
+            artifact_urls[_row["arm"]] = _artifact.url
     mo.vstack([choose_case, mo.md(f"**{selected['fixture']}**, repetition **{selected['repetition']}**. REA: **{selected['task_status']}**; baseline: **{paired['task_status'] if paired else 'unavailable'}**.")])
-    return choose_case, paired, recovered_roots, selected
+    return artifact_urls, choose_case, paired, recovered_roots, selected
 
 
 @app.cell
@@ -133,7 +136,9 @@ def _(
             if _left.size == _right.size:
                 _diff = ImageChops.difference(_left, _right)
                 _changed = sum(a != b for a, b in zip(_left.getdata(), _right.getdata()))
-                differences.append(mo.vstack([mo.md(f"**{arm} pixel difference:** {_changed} changed RGBA pixels"), mo.image(_diff.convert("RGB").resize((_left.width * 10, _left.height * 10), Image.Resampling.NEAREST))]))
+                _mask = Image.new("RGB", _left.size)
+                _mask.putdata([(225, 29, 72) if any(pixel) else (241, 245, 249) for pixel in _diff.getdata()])
+                differences.append(mo.vstack([mo.md(f"**{arm} pixel difference:** {_changed} changed RGBA pixels (pink includes alpha-only changes)"), mo.image(_mask.resize((_left.width * 10, _left.height * 10), Image.Resampling.NEAREST))]))
             cards.append(mo.vstack([mo.md(f"### {arm.upper()} recovery"), animation(_folder, _metadata["frames"], _metadata["playback_order"], _metadata["fps"]), display_image(_candidate)]))
         except (OSError, ValueError, KeyError, IndexError) as _error:
             cards.append(mo.callout(f"{arm}: output could not be rendered: {_error}", kind="warn"))
@@ -142,13 +147,25 @@ def _(
 
 
 @app.cell
-def _(mo, paired, selected):
+def _(artifact_urls, json, mo, paired, recovered_roots, selected):
     links = []
+    evidence_rows = []
+    tool_steps = []
     for _row in [selected, paired]:
         if _row:
             _publication = _row.get("publication", {})
-            links.append(mo.md(f"**{_row['arm']}** · [Agent Lens]({_row['lens_url']}) · [Run and versioned artifacts]({_publication.get('run_url', _row['lens_url'])})\n\nAttempt: `{_row['attempt_id']}` · Evidence export: `{_row.get('evidence_export', {}).get('status', 'unavailable')}`"))
-    mo.vstack([mo.md("## Follow the evidence"), *links, mo.accordion({"Independent checker details": mo.json({"rea": selected.get("checker"), "baseline": paired.get("checker") if paired else None})})])
+            links.append(mo.md(f"**{_row['arm']}** · [Agent Lens]({_row['lens_url']}) · [Run]({_publication.get('run_url', _row['lens_url'])}) · [Immutable artifact and complete Evidence]({artifact_urls.get(_row['arm'], _row['lens_url'])})\n\nAttempt: `{_row['attempt_id']}` · Artifact: `{_publication.get('artifact', 'unavailable')}` · Evidence export: `{_row.get('evidence_export', {}).get('status', 'unavailable')}`"))
+            _root = recovered_roots.get(_row["arm"])
+            if _root and (_root / "events.json").is_file():
+                for _event in json.loads((_root / "events.json").read_text()):
+                    if _event["kind"] == "tool":
+                        _url = f"{_row['lens_url']}?chatTab=spans&convTurn=1&chatTrace={_event['trace_id']}&span={_event['span_id']}"
+                        tool_steps.append({"arm": _row["arm"], "tool": _event["tool"], "tool-call ID": _event["tool_call_id"], "step": mo.md(f"[Open span]({_url})")})
+            if _root and (_root / "evidence/bundle.json").is_file():
+                _bundle = json.loads((_root / "evidence/bundle.json").read_text())
+                for _record in _bundle["records"]:
+                    evidence_rows.append({"arm": _row["arm"], **{_key: _record.get(_key) for _key in ("evidence_id", "operation", "provider", "confidence", "authority", "limitations", "evidence_links")}})
+    mo.vstack([mo.md("## Follow the evidence"), *links, mo.ui.table(tool_steps, selection=None, page_size=10), mo.accordion({"Canonical Evidence record summaries": mo.json(evidence_rows), "Independent checker details": mo.json({"rea": selected.get("checker"), "baseline": paired.get("checker") if paired else None})})])
     return
 
 
