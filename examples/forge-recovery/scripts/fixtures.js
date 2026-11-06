@@ -3,6 +3,8 @@ window.makeRecoveryFixture = async function (family, seed) {
   const height = family === "non_square" ? 17 : 24;
   const count = seed === 17 ? 6 : 9;
   const fps = seed === 17 ? 8 : 13;
+  // Qualification artwork is disjoint from every scored fixture.
+  if (family === "qualification") seed += 29;
   const layered = family === "opacity" || family === "qualification";
   const layers = [];
   for (let layerIndex = 0; layerIndex < (layered ? 3 : 1); layerIndex++) {
