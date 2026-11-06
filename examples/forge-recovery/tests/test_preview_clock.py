@@ -72,7 +72,7 @@ def test_virtual_clock_owns_time_despite_driver_delay(tmp_path, actual_fps, hidd
     # Delay the driver between manual ticks: this reproduces the measured RPC
     # overhead without changing the production checker or the browser's timers.
     (work / "delayed_check.py").write_text('''import runpy, time
-from playwright.sync_api import Clock
+from playwright.sync_api._generated import Clock
 original = Clock.run_for
 def delayed(self, ticks):
     result = original(self, ticks)
