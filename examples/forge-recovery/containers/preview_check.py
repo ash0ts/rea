@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright
 
 root = Path("/work/output")
 metadata = json.loads((root / "manifest.json").read_text())
-result = {"scrubbing": False, "playback": False, "download": False, "errors": []}
+result = {"scrubbing": None, "playback": None, "download": None, "errors": []}
 server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root)))
 thread = threading.Thread(target=server.serve_forever, daemon=True)
 thread.start()
@@ -29,22 +29,30 @@ try:
         page.wait_for_function("document.querySelector('canvas')?.width > 0")
         slider = page.get_by_role("slider", name="Frame", exact=True)
         slider.wait_for()
-        for i, frame_name in enumerate(metadata["frames"]):
-            slider.evaluate("(el, n) => { el.value = n; el.dispatchEvent(new Event('input', {bubbles: true})); }", i)
-            # Decode completes independently of rendering; wait for the selected canvas pixels.
-            expected = Image.open(root / frame_name).convert("RGBA")
+        expected_frames = []
+        for frame_name in metadata["frames"]:
+            with Image.open(root / frame_name) as frame_image:
+                expected_frames.append(frame_image.convert("RGBA"))
+
+        def wait_for_canvas(index):
+            expected = expected_frames[index]
             for retry in range(30):
                 data = page.locator("canvas").first.evaluate("c => c.toDataURL('image/png')")
                 observed = Image.open(io.BytesIO(base64.b64decode(data.split(",", 1)[1]))).convert("RGBA")
                 if observed.size == expected.size and ImageChops.difference(observed, expected).getbbox(alpha_only=False) is None:
-                    break
+                    return
                 page.wait_for_timeout(50)
-            else:
-                raise ValueError(f"Canvas differs at frame {i}")
+            raise ValueError(f"Canvas differs at frame {index}")
+
+        result["scrubbing"] = False
+        for i in range(len(metadata["frames"])):
+            slider.evaluate("(el, n) => { el.value = n; el.dispatchEvent(new Event('input', {bubbles: true})); }", i)
+            wait_for_canvas(i)
         result["scrubbing"] = True
         # Manual ticks must own all elapsed browser time, including between RPCs.
         page.clock.pause_at(datetime.datetime(2024, 1, 1, 0, 1, tzinfo=datetime.timezone.utc))
         slider.evaluate("el => { el.value = 0; el.dispatchEvent(new Event('input', {bubbles: true})); }")
+        result["playback"] = False
         page.get_by_role("button", name="Play", exact=True).click()
         order = metadata["playback_order"]
         period = 1000 / metadata["fps"]
@@ -57,6 +65,7 @@ try:
             if current != previous:
                 if current != order[(order.index(previous) + 1) % len(order)]:
                     raise ValueError("Playback frame order differs")
+                wait_for_canvas(current)
                 changes.append((tick + 1) * step)
                 previous = current
         page.get_by_role("button", name="Pause", exact=True).click()
@@ -64,6 +73,7 @@ try:
         result["playback"] = len(changes) >= len(order) and all(abs((b - a) - period) <= step * 2 for a, b in zip(changes, changes[1:]))
         if not result["playback"]:
             result["errors"].append("Playback timing differs; inspect the recorded virtual-clock change times")
+        result["download"] = False
         with page.expect_download() as download:
             page.get_by_role("link", name="Download sprite sheet", exact=True).click()
         saved = Path("/tmp/download.png")

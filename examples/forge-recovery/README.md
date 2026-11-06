@@ -80,8 +80,10 @@ REA_RECOVERY_CHECKER_IMAGE=rea-forge-recovery-checker:v1 \
   uv run pytest tests/test_preview_clock.py
 ```
 
-They exercise 13-FPS animation-frame playback, hidden frames and a wrong-FPS
-negative control under driver delay. They are skipped when no checker image is
+They exercise 13-FPS animation-frame playback, hidden frames, a wrong-FPS
+negative control and a slider that advances without drawing the corresponding
+canvas frame. Playback checks the actual RGBA canvas pixels. A preview criterion
+that could not run after an earlier failure remains unavailable (`null`). They are skipped when no checker image is
 selected. See [Playwright's manual clock guidance](https://playwright.dev/python/docs/clock#tick-through-time-manually-firing-all-the-timers-consistently).
 
 Docker start, execution transport and cleanup calls have deadlines. A daemon

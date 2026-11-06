@@ -18,7 +18,7 @@ IMAGE = os.environ.get("REA_RECOVERY_CHECKER_IMAGE")
 pytestmark = pytest.mark.skipif(not IMAGE, reason="Set REA_RECOVERY_CHECKER_IMAGE for real isolated browser verification")
 
 
-def preview(output, actual_fps, hidden):
+def preview(output, actual_fps, hidden, broken_canvas):
     output.mkdir()
     count = 9
     frames = []
@@ -45,10 +45,11 @@ const images = files.map(src => { const im = new Image(); im.src = src; return i
 function show(n) { index = n; slider.value = n; ctx.clearRect(0,0,4,3); ctx.drawImage(images[n],0,0); }
 Promise.all(images.map(im => im.decode())).then(() => show(0));
 slider.oninput = () => { playing = false; cancelAnimationFrame(raf); button.textContent = 'Play'; show(+slider.value); };
+function advance(n) { ADVANCE }
 function tick(now) {
  if (!playing) return;
  elapsed += now-last; last = now;
- while (elapsed >= 1000/fps) { elapsed -= 1000/fps; show(order[(order.indexOf(index)+1)%order.length]); }
+ while (elapsed >= 1000/fps) { elapsed -= 1000/fps; advance(order[(order.indexOf(index)+1)%order.length]); }
  raf = requestAnimationFrame(tick);
 }
 button.onclick = () => {
@@ -56,17 +57,17 @@ button.onclick = () => {
  if (playing) { last = performance.now(); elapsed = 0; raf = requestAnimationFrame(tick); }
  else cancelAnimationFrame(raf);
 };
-</script>'''.replace('FRAMES', json.dumps(frames)).replace('ORDER', json.dumps(order)).replace('FPS', str(actual_fps))
+</script>'''.replace('FRAMES', json.dumps(frames)).replace('ORDER', json.dumps(order)).replace('FPS', str(actual_fps)).replace('ADVANCE', 'index = n; slider.value = n;' if broken_canvas else 'show(n);')
     (output / "index.html").write_text(html)
 
 
-@pytest.mark.parametrize("actual_fps,hidden,expected", [(13, [], True), (13, [1, 7], True), (7, [], False)])
-def test_virtual_clock_owns_time_despite_driver_delay(tmp_path, actual_fps, hidden, expected):
+@pytest.mark.parametrize("actual_fps,hidden,broken_canvas,expected", [(13, [], False, True), (13, [1, 7], False, True), (7, [], False, False), (13, [], True, False)])
+def test_virtual_clock_owns_time_despite_driver_delay(tmp_path, actual_fps, hidden, broken_canvas, expected):
     work = tmp_path / "work"
     work.mkdir()
     inputs = tmp_path / "input"
     inputs.mkdir()
-    preview(work / "output", actual_fps, hidden)
+    preview(work / "output", actual_fps, hidden, broken_canvas)
     checker = Path(__file__).resolve().parents[1] / "containers/preview_check.py"
     shutil.copyfile(checker, work / "preview_check.py")
     # Delay the driver between manual ticks: this reproduces the measured RPC
@@ -85,6 +86,7 @@ runpy.run_path('/work/preview_check.py', run_name='__main__')
         executed = box.execute("python delayed_check.py", timeout=45)
     assert executed["exit_code"] == 0, executed
     result = json.loads(executed["stdout"])
-    assert result["scrubbing"] and result["download"], result
+    assert result["scrubbing"], result
+    assert result["download"] is (None if broken_canvas else True), result
     assert result["playback"] is expected, result
     assert result["passed"] is expected, result
