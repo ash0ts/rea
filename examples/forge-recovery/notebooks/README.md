@@ -111,3 +111,35 @@ published correction. Both original and corrected records appear in the comparis
 notebook. Task statuses, inference usage and original performance measurements stay
 unchanged; recheck resource measurements are separate. A request-limited attempt
 can have a correct decoder, so paired tables show both task status and check pass.
+
+## Native Forge dashboard and report
+
+`publish_dashboard.py` publishes a saved workspace and a native report using
+`wandb-workspaces==0.4.13`. It reads existing results only. Dashboard projection
+runs use a separate job type and snapshot identity; they are never additional
+agent attempts. The report links every planned attempt and its original Agent
+Lens conversation and immutable artifacts. Unknown checks and resource values
+remain unavailable rather than zero.
+
+```sh
+uv venv .local/dashboard-venv
+uv pip install --python .local/dashboard-venv/bin/python \
+  -r notebooks/dashboard-requirements.txt
+.local/dashboard-venv/bin/python notebooks/publish_dashboard.py \
+  --root .local/experiment
+```
+
+Before final comparison publication, views are explicitly provisional and show
+how many of the 24 attempts have records. After `publish_comparison.py`, the same
+command creates a separate final snapshot from its immutable comparison artifact;
+it does not overwrite the provisional record. The publisher verifies that the
+project is private, reads back both saved views, verifies the snapshot filter
+selects exactly its recorded attempts, and compares every metric against source.
+Browser verification remains a separate acceptance step.
+
+The real initial publication exposed empty server summaries after summary-only
+SDK runs. The publisher now commits derived summaries through the Public API and
+verifies them using a fresh client. The original campaign runs are not modified.
+If publication is interrupted, its `publishing.json` retains created run/view IDs;
+inspect and reconcile those resources before retrying. Saved source snapshots and
+readback receipts remain under `dashboards/<snapshot-id>/` for artifact publication.
