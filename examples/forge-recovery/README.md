@@ -68,8 +68,9 @@ open-source application. Candidate code is never run directly by the host checke
 The preview checker installs Playwright's clock before navigation and pauses it
 before manual playback ticks. Driver/RPC time must not advance the browser clock
 between samples. A retained 13-FPS preview exposed a false timing failure in the
-original checker: 1,944 ms of requested ticks advanced its unpaused clock by
-2,465 ms. The same output passed with the clock paused. Original campaign records
+original checker: at one frame transition, the driver had counted 1,926 ms while
+the unpaused browser clock had advanced by 2,465 ms. The same output passed with
+the clock paused. Original campaign records
 remain immutable; every eligible retained preview must receive the same corrected
 check before reporting final playback outcomes.
 
