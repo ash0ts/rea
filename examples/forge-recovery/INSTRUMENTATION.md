@@ -100,3 +100,18 @@ For one continuous campaign, use `qualify --run-scored` with the same arguments 
 and all scored attempts. The qualification gate is saved and checked before any
 scored request; failure still closes every owned retention container. This avoids
 an unreferenced-image gap between separate command invocations on a shared daemon.
+
+The build can own image retention through the complete campaign as well:
+
+```sh
+REA_RECOVERY_PYTHON=.venv/bin/python sh scripts/build-containers.sh -- \
+  .venv/bin/python -m forge_recovery.cli qualify --run-scored \
+  --root .local/experiment --prepared .local/prepared --entity wandb \
+  --ledger .local/execution-ledger.json
+```
+
+Each newly built image is immediately referenced by an owned isolated container,
+including while later images build. The same owner retains those references until
+the optional command ends. Cleanup receipts live under `.local/build-retention/`;
+failed cleanup keeps its identifiers. Only the owned temporary source archive is
+removed; the script never prunes the shared Docker daemon.
