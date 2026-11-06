@@ -37,6 +37,12 @@ def _(mo):
     A source-withheld Piskel exercise: inspect a shipped minified bundle, recover a
     saved animation, then test the submitted decoder on an unseen variant.
 
+    The subject is an original **Signal explorer** robot: it walks, changes color,
+    and leaves a magenta frame marker. The fixture families vary translucent layers,
+    geometry, image-chunk ordering, hidden frames, and legacy storage. Switch between
+    the six-frame input and the unseen nine-frame variant to inspect whether the
+    submitted program recovered reusable behavior.
+
     **The pictures are checked outputs.** Original pixels come from pinned Piskel;
     recovered pixels come from the submitted decoder in a separate container.
     Controls here read frozen artifacts and never launch inference or execute the
