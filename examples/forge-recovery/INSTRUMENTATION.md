@@ -59,7 +59,8 @@ continue after execution stops; their completion never permits further agent wor
 The agent container's cgroup records the process family's CPU and peak memory,
 including REA workers. Controller CPU and process-lifetime peak memory are separate.
 Remote inference CPU/memory and billing settlement remain unavailable. Checker
-resources are recorded separately. There is no cache shared between attempts.
+resources are recorded separately. Analysis sessions and their caches are not
+shared between attempts; host filesystem and image caches were not reset.
 
 The actor receives one visible project and the selected minified bundle. Each check
 container receives only the standalone `decode.py` and one input; no pre-generated
