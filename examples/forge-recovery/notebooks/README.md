@@ -13,7 +13,7 @@ repetitions do not turn them into twelve independent cases.
 
 The shared source of every displayed score is the frozen comparison artifact.
 Playback is synthesized from recorded PNGs, never by executing a submitted decoder
-inside a credentialed notebook. GIF playback is a viewing aid, while correctness
+inside a credentialed notebook. Animated PNG playback preserves translucent layers and is a viewing aid, while correctness
 comes from exact PNG comparisons and the isolated browser-clock checker.
 
 ```sh
