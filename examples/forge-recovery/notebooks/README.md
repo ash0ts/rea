@@ -74,3 +74,6 @@ A fresh hosted runtime was observed using marimo 0.25.1, W&B 0.31.0 and Pillow
 observed compatible versions and check them before executing notebook cells.
 Verify actual package versions in the fresh runtime; source metadata alone does
 not establish that a host restored them. Local notebook checks use the same pins.
+
+[The walkthrough](WALKTHROUGH.md) follows the first independently correct treatment
+submission and its paired baseline, and states whether that agent actually used REA.
