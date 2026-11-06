@@ -61,3 +61,9 @@ If the editor normalizes source, inspect the downloaded file and reconcile the
 checked-in source before the final readback. Pin the comparison only after all
 24 scored records and uploads are present. Pass `--prior-root` for each retained
 qualification campaign so setup failures remain visible in the published record.
+
+The recovery notebook links each recorded tool-call ID directly to its Agent Lens
+span and lists canonical Evidence IDs, provider, confidence, authority and
+limitations. Its artifact link opens the immutable version containing the complete
+`evidence/bundle.json`; the displayed summary does not replace that bundle. Pink
+pixel differences mark any changed RGBA channel, including alpha-only changes.
