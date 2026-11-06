@@ -117,7 +117,7 @@ def _(
     def animation(folder, names, order, fps):
         buffer = io.BytesIO()
         frames = [Image.open(folder / names[i]).convert("RGBA").resize((expected["width"] * 10, expected["height"] * 10), Image.Resampling.NEAREST) for i in order]
-        frames[0].save(buffer, format="GIF", save_all=True, append_images=frames[1:], duration=1000 / fps, loop=0, disposal=2)
+        frames[0].save(buffer, format="PNG", save_all=True, append_images=frames[1:], duration=1000 / fps, loop=0, disposal=0, blend=0)
         return mo.image(buffer.getvalue(), alt="Recorded animation playback")
 
     original_names = [f"frame-{i:03}.png" for i in range(expected["frame_count"])]
@@ -147,7 +147,7 @@ def _(
             cards.append(mo.vstack([mo.md(f"### {arm.upper()} recovery"), animation(_folder, _metadata["frames"], _metadata["playback_order"], _metadata["fps"]), display_image(_candidate)]))
         except (OSError, ValueError, KeyError, IndexError) as _error:
             cards.append(mo.callout(f"{arm}: output could not be rendered: {_error}", kind="warn"))
-    mo.vstack([mo.hstack(cards, wrap=True, align="start"), mo.md(f"{expected['width']} × {expected['height']} · {expected['fps']} FPS · hidden indices: {expected['hidden_frames']} · GIF playback is a viewing aid; the checker uses exact PNG pixels and browser-clock timing."), mo.hstack(differences, wrap=True), mo.md("### Inspect an original layer"), display_image(original / f"layer-{layer.value}-{frame.value:03}.png")])
+    mo.vstack([mo.hstack(cards, wrap=True, align="start"), mo.md(f"{expected['width']} × {expected['height']} · {expected['fps']} FPS · hidden indices: {expected['hidden_frames']} · Animated PNG playback is a viewing aid; the checker uses exact PNG pixels and browser-clock timing."), mo.hstack(differences, wrap=True), mo.md("### Inspect an original layer"), display_image(original / f"layer-{layer.value}-{frame.value:03}.png")])
     return
 
 
