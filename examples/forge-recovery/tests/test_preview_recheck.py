@@ -57,6 +57,35 @@ def test_recheck_refuses_partial_campaign_before_running_a_checker(rechecker, re
         rechecker.run(recorded_campaign)
 
 
+def test_recheck_preserves_unexecuted_preview_criteria(rechecker, monkeypatch, tmp_path):
+    source = tmp_path / "recorded-output"
+    source.mkdir()
+    (source / "manifest.json").write_text("{}")
+    preview = {"passed": False, "scrubbing": True, "playback": False, "download": None,
+        "errors": ["ValueError: Canvas differs at frame 1"]}
+
+    class RecordedSandbox:
+        def __init__(self, work, inputs, image):
+            self.receipt = work.parent / "container.json"
+
+        def start(self):
+            write_json(self.receipt, {"state": "running"})
+
+        def execute(self, command, timeout):
+            return {"exit_code": 0, "stdout": json.dumps(preview), "stderr": ""}
+
+        def resources(self):
+            return {}
+
+        def close(self):
+            write_json(self.receipt, {"state": "removed"})
+
+    monkeypatch.setattr(rechecker, "Sandbox", RecordedSandbox)
+    result = rechecker.grade_preview(source, tmp_path / "recheck", "frozen-image")
+    assert result["preview"] == preview
+    assert result["cleanup_receipt"]["state"] == "removed"
+
+
 @pytest.mark.parametrize("change", ["source", "original"])
 def test_recheck_refuses_stale_source_or_original_result(rechecker, recorded_campaign, monkeypatch, tmp_path, change):
     monkeypatch.setattr(rechecker, "grade_preview", lambda *_: {"preview": {"passed": True}})

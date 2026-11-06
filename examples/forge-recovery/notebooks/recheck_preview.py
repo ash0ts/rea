@@ -71,7 +71,9 @@ def grade_preview(source: Path, destination: Path, image: str) -> dict:
             if executed["exit_code"] != 0:
                 raise RuntimeError("Corrected checker did not return a result; preserve this measurement failure")
             preview = json.loads(executed["stdout"])
-            if not all(isinstance(preview.get(key), bool) for key in ("passed", "scrubbing", "playback", "download")):
+            if (not isinstance(preview.get("passed"), bool) or
+                any(key not in preview or (preview[key] is not None and not isinstance(preview[key], bool))
+                    for key in ("scrubbing", "playback", "download"))):
                 raise ValueError("Corrected checker returned an invalid result contract")
             result["preview"] = preview
             try:
