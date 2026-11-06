@@ -42,12 +42,21 @@ try:
         page.clock.install()
         slider.evaluate("el => { el.value = 0; el.dispatchEvent(new Event('input', {bubbles: true})); }")
         page.get_by_role("button", name="Play", exact=True).click()
-        seen = set()
-        for _ in range(len(metadata["frames"]) * 3):
-            page.clock.run_for(max(1, int(1000 / metadata["fps"] / 2)))
-            seen.add(int(slider.input_value()))
+        order = metadata["playback_order"]
+        period = 1000 / metadata["fps"]
+        step = max(1, int(period / 8))
+        previous = int(slider.input_value())
+        changes = []
+        for tick in range(len(order) * 24):
+            page.clock.run_for(step)
+            current = int(slider.input_value())
+            if current != previous:
+                if current != order[(order.index(previous) + 1) % len(order)]:
+                    raise ValueError("Playback frame order differs")
+                changes.append((tick + 1) * step)
+                previous = current
         page.get_by_role("button", name="Pause", exact=True).click()
-        result["playback"] = len(seen) > 1 and not seen.intersection(metadata["hidden_frames"])
+        result["playback"] = len(changes) >= len(order) and all(abs((b - a) - period) <= step * 2 for a, b in zip(changes, changes[1:]))
         with page.expect_download() as download:
             page.get_by_role("link", name="Download sprite sheet", exact=True).click()
         saved = Path("/tmp/download.png")

@@ -17,12 +17,14 @@ class Sandbox:
         self.image = image
         self.owner = owner or str(uuid.uuid4())
         self.container_id: str | None = None
+        self.start_pending = False
         self.receipt = self.workspace.parent / (self.workspace.name + ".container.json")
 
     def start(self) -> "Sandbox":
         self.workspace.mkdir(parents=True, exist_ok=True)
         name = "rea-recovery-" + uuid.uuid4().hex
         write_json(self.receipt, {"owner": self.owner, "name": name, "status": "starting"})
+        self.start_pending = True
         result = subprocess.run([
             "docker", "run", "-d", "--name", name, "--label", "rea-recovery.owner=" + self.owner,
             "--network", "none", "--cpus", "2", "--memory", "4g", "--pids-limit", "128",
@@ -33,6 +35,7 @@ class Sandbox:
         if result.returncode:
             raise RuntimeError(f"Container start failed; retain {self.receipt}: {result.stderr.strip()}")
         self.container_id = result.stdout.strip()
+        self.start_pending = False
         write_json(self.receipt, {"owner": self.owner, "id": self.container_id, "name": name, "status": "running"})
         return self
 
@@ -63,6 +66,8 @@ class Sandbox:
 
     def close(self) -> None:
         if not self.container_id:
+            if self.start_pending:
+                raise RuntimeError(f"Container startup identity is unresolved; retain {self.receipt} for cleanup retry")
             return
         result = subprocess.run(["docker", "inspect", self.container_id], capture_output=True, text=True)
         if result.returncode:
