@@ -52,7 +52,7 @@ def error_status(error: BaseException) -> str:
 
 
 def image_id(name: str) -> str:
-    return subprocess.check_output(["docker", "image", "inspect", name, "--format", "{{.Id}}"], text=True).strip()
+    return subprocess.check_output(["docker", "image", "inspect", name, "--format", "{{.Id}}"], text=True, timeout=15).strip()
 
 
 def code_inventory() -> dict:

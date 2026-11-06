@@ -13,7 +13,7 @@ from weave.conversation import Usage, start_llm, start_tool
 
 from .budget import BudgetStop, Ledger, OUTPUT_LIMIT
 from .common import write_json
-from .sandbox import Sandbox
+from .sandbox import Sandbox, SandboxTransportError
 from .telemetry import credentials, message, span_ids
 
 REA_TOOLS = ("analyze_javascript_application", "trace_application_feature", "trace_javascript_semantics", "inspect_analysis_view", "get_evidence_bundle")
@@ -131,7 +131,8 @@ async def recover(box: Sandbox, session, config: dict, attempt_id: str, ledger: 
                                 span.record_error(RuntimeError("REA returned a tool error"))
                         else:
                             raise ValueError("Tool is not exposed in this arm")
-                    except (TimeoutError, asyncio.CancelledError):
+                    except (TimeoutError, asyncio.CancelledError, SandboxTransportError) as error:
+                        span.record_error(error)
                         raise
                     except Exception as error:
                         span.record_error(error)

@@ -98,32 +98,40 @@ def test_real_sdk_accepts_frozen_agent_turn_configuration():
     assert turn.system_instructions == [SYSTEM]
 
 
-@pytest.mark.parametrize("with_tool", [True, False])
-def test_truncated_model_output_stops_before_execution_or_replay(tmp_path, monkeypatch, with_tool):
+def agent_harness(monkeypatch, responses, execute):
     from types import SimpleNamespace
-    from unittest.mock import AsyncMock, Mock
-    from openai.types.chat import ChatCompletion
+    from unittest.mock import AsyncMock
     from forge_recovery import agent
-    reply = {"role": "assistant", "content": "partial"}
-    if with_tool:
-        reply["tool_calls"] = [{"id": "call_partial", "type": "function", "function": {"name": "execute", "arguments": '{"command":"unfinished'}}]
-    response = ChatCompletion.model_validate({"id": "response", "object": "chat.completion", "created": 1, "model": "test", "choices": [{"index": 0, "finish_reason": "length", "message": reply}], "usage": {"prompt_tokens": 100, "completion_tokens": 8192, "total_tokens": 8292}})
-    create = AsyncMock(return_value=response)
+    create = AsyncMock(side_effect=responses)
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)), close=AsyncMock())
+    errors = []
     class Span:
         def __enter__(self): return self
         def __exit__(self, *_): pass
         def set_attributes(self, *_): pass
+        def record_error(self, error): errors.append(error)
     monkeypatch.setattr(agent, "credentials", lambda: "test-key")
     monkeypatch.setattr(agent, "AsyncOpenAI", lambda **_: client)
     monkeypatch.setattr(agent, "start_llm", lambda **_: Span())
+    monkeypatch.setattr(agent, "start_tool", lambda **_: Span())
     monkeypatch.setattr(agent, "span_ids", lambda: {"span_id": "span", "trace_id": "trace"})
-    box = SimpleNamespace(execute=Mock(side_effect=AssertionError("partial tool call must not execute")))
     config = {"system_prompt": "system", "task_prompt": "task", "model": "test", "temperature": 0.2, "base_url": "https://example.invalid", "tools": {"baseline": [agent.EXECUTE]}}
+    return agent, client, SimpleNamespace(execute=execute), config, errors
+
+
+@pytest.mark.parametrize("with_tool", [True, False])
+def test_truncated_model_output_stops_before_execution_or_replay(tmp_path, monkeypatch, with_tool):
+    from unittest.mock import Mock
+    from openai.types.chat import ChatCompletion
+    reply = {"role": "assistant", "content": "partial"}
+    if with_tool:
+        reply["tool_calls"] = [{"id": "call_partial", "type": "function", "function": {"name": "execute", "arguments": '{"command":"unfinished'}}]
+    response = ChatCompletion.model_validate({"id": "response", "object": "chat.completion", "created": 1, "model": "test", "choices": [{"index": 0, "finish_reason": "length", "message": reply}], "usage": {"prompt_tokens": 100, "completion_tokens": 8192, "total_tokens": 8292}})
+    agent, client, box, config, _ = agent_harness(monkeypatch, [response], Mock(side_effect=AssertionError("partial tool call must not execute")))
     ledger = Ledger(tmp_path / "ledger.json")
     with pytest.raises(BudgetStop, match="output token limit"):
         asyncio.run(agent.recover(box, None, config, "attempt", ledger, tmp_path, float("inf")))
-    assert create.await_count == 1
+    assert client.chat.completions.create.await_count == 1
     box.execute.assert_not_called()
     assert read_json(tmp_path / "messages.json")[-1] == response.choices[0].message.model_dump(exclude_none=True)
     assert read_json(tmp_path / "events.json")[-1]["finish_reason"] == "length"
@@ -152,3 +160,31 @@ def test_invalid_input_checks_require_working_valid_input_control(tmp_path, monk
     result = judge.evaluate(candidate, oracle, tmp_path / "check", {"base": "test", "checker": "test"})
     assert all(r["passed"] is expected for r in result["regressions"].values())
     assert all(r["valid_input_control_passed"] is expected for r in result["regressions"].values())
+
+
+@pytest.mark.parametrize("transport_failure", [True, False])
+def test_transport_failure_stops_paid_loop_but_candidate_timeout_can_be_recovered(tmp_path, monkeypatch, transport_failure):
+    from unittest.mock import Mock
+    from openai.types.chat import ChatCompletion
+    from forge_recovery.sandbox import SandboxTransportError
+    def completion(message, reason):
+        return ChatCompletion.model_validate({"id": "response", "object": "chat.completion", "created": 1, "model": "test", "choices": [{"index": 0, "finish_reason": reason, "message": message}], "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110}})
+    call = completion({"role": "assistant", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "execute", "arguments": '{"command":"pwd"}'}}]}, "tool_calls")
+    final = completion({"role": "assistant", "content": "Candidate command failed; no output claimed."}, "stop")
+    failed_transport = SandboxTransportError("Docker daemon unavailable")
+    executed = Mock(side_effect=failed_transport) if transport_failure else Mock(return_value={"exit_code": 124, "stdout": "", "stderr": "Candidate deadline", "truncated": False})
+    agent, client, box, config, errors = agent_harness(monkeypatch, [call, final], executed)
+    ledger = Ledger(tmp_path / "ledger.json")
+    if transport_failure:
+        with pytest.raises(SandboxTransportError):
+            asyncio.run(agent.recover(box, None, config, "attempt", ledger, tmp_path, float("inf")))
+        assert failed_transport in errors
+        assert error_status(failed_transport) == "infrastructure_failure"
+        assert all(m["role"] != "tool" for m in read_json(tmp_path / "messages.json"))
+    else:
+        result = asyncio.run(agent.recover(box, None, config, "attempt", ledger, tmp_path, float("inf")))
+        assert result["completion"] == final.choices[0].message.content
+        assert any(m["role"] == "tool" for m in read_json(tmp_path / "messages.json"))
+    assert client.chat.completions.create.await_count == (1 if transport_failure else 2)
+    assert ledger.summary("attempt")["requests"] == (1 if transport_failure else 2)
+    client.close.assert_awaited_once()

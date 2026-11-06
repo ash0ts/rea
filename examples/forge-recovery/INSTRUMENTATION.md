@@ -109,3 +109,20 @@ including while later images build. The same owner retains those references unti
 the optional command ends. Cleanup receipts live under `.local/build-retention/`;
 failed cleanup keeps its identifiers. Only the owned temporary source archive is
 removed; the script never prunes the shared Docker daemon.
+
+
+A real OrbStack VM hang exposed a separate transport boundary: a Docker client
+request could expire while the daemon was unavailable, and the old runner
+presented that as a candidate command timeout. The corrected runner raises a
+`SandboxTransportError`, records it on the tool span and ends the attempt as an
+infrastructure failure without another model request. A candidate command that
+returns exit 124 through the running execution helper remains a normal tool result.
+Docker startup, image inspection and cleanup have bounded management deadlines;
+uncertain startup/cleanup retains its owner receipt for recovery.
+
+The scored campaign preserves its original implementation and outcomes, including
+the affected attempt's original timeout and unavailable resource measurements.
+Its exact hash-verified controller/checker source is stored as a versioned artifact.
+A separate uniform timing recheck uses retained verified outputs; it never invokes
+an agent or replaces a scored attempt. Final reporting must distinguish original
+checker records, corrected playback checks and the shared-host infrastructure event.
