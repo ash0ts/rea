@@ -49,7 +49,7 @@ def _(Path, json, mo, wandb):
     data = json.loads((artifact_root / "comparison.json").read_text())
     summary = data["summary"]
     rows = summary["attempts"]
-    mo.md(f"**{summary['recorded_scored']} / 24 recorded** · configuration `{summary['configuration_sha256']}` · immutable source `{comparison_ref}`")
+    mo.md(f"**{summary['recorded_scored']} / 24 recorded** · configuration `{summary['configuration_sha256']}` · immutable source `{comparison_ref}`\n\nScore basis: {summary.get('score_basis', 'Original independent checker')}. Task status and resource measurements remain the original recorded outcomes.")
     return data, rows, summary
 
 
@@ -64,11 +64,12 @@ def _(mo, rows, summary):
             for _arm in ("baseline", "rea"):
                 _row = _pair.get(_arm)
                 _record[_arm] = _row["task_status"] if _row else "not recorded"
+                _record[f"{_arm} passed all checks"] = _row.get("checker", {}).get("passed") if _row else None
                 _record[f"{_arm} tokens"] = (_row["usage"]["input_tokens"] + _row["usage"]["output_tokens"]) if _row and _row.get("usage", {}).get("unknown_usage_requests") == 0 else None
                 _record[f"{_arm} seconds"] = round(_row["agent_elapsed_seconds"], 2) if _row and "agent_elapsed_seconds" in _row else None
                 _record[f"{_arm} USD estimate/reservation"] = round(_row["usage"]["reserved_or_estimated_usd"], 4) if _row and "usage" in _row else None
             paired_rows.append(_record)
-    mo.vstack([mo.md("## Paired outcomes"), mo.ui.table(outcome_rows, selection=None), mo.ui.table(paired_rows, selection=None, page_size=12), mo.md("Tokens include full repeated context and tool schemas. USD uses uncached rates; uncertain calls retain their pre-request reservation. Seconds measure the complete agent phase, including REA. Comparing resource use only among successes would omit failed work; the table retains every recorded attempt.")])
+    mo.vstack([mo.md("## Paired outcomes"), mo.ui.table(outcome_rows, selection=None), mo.ui.table(paired_rows, selection=None, page_size=12), mo.md("Tokens include full repeated context and tool schemas. USD uses uncached rates; uncertain calls retain their pre-request reservation. Seconds measure the complete agent phase, including REA and finalization; cleanup can extend beyond the execution deadline. Comparing resource use only among successes would omit failed work; the table retains every recorded attempt.")])
     return
 
 
@@ -107,7 +108,10 @@ def _(choose_failure, mo, rows):
 
 @app.cell
 def _(data, mo):
-    mo.vstack([mo.md("## Limits on interpretation"), mo.md("No replacement retries of scored attempts. Qualification uses separate artwork and is excluded from the scored denominator. REA availability is the treatment; actual use can be inspected in each conversation. Remote model CPU and memory are unavailable. Local peak memory covers the container process family, while controller peak memory is a process-lifetime high-water mark. Each attempt starts a fresh container and analysis session; host filesystem and image caches were not reset. The local host was shared; background contention was not measured. Six cases and two repetitions cannot establish population-level gains."), mo.accordion({"Frozen execution ledger": mo.json(data["ledger"]), "Qualification gate": mo.json(data["qualification"]), "Qualification attempts": mo.json(data["qualification_attempts"]), "Earlier qualification failures (original records)": mo.json(data["prior_qualification"]), "Cleanup reconciliations": mo.json(data["cleanup_reconciliations"]), "Artifact integrity readback": mo.json(data.get("artifact_readbacks", [])), "Provenance": mo.json(data["inputs"])})])
+    def _recorded_json(value):
+        return mo.json(value) if value is not None else mo.md("Not recorded in this artifact.")
+
+    mo.vstack([mo.md("## Limits on interpretation"), mo.md("No replacement retries of scored attempts. Qualification uses separate artwork and is excluded from the scored denominator. REA availability is the treatment; actual use can be inspected in each conversation. Remote model CPU and memory are unavailable. Local peak memory covers the container process family, while controller peak memory is a process-lifetime high-water mark. Each attempt starts a fresh container and analysis session; host filesystem and image caches were not reset. The local host was shared; background contention was not measured. Six cases and two repetitions cannot establish population-level gains."), mo.accordion({"Original checker records": _recorded_json(data.get("original_summary")), "Uniform preview recheck": _recorded_json(data.get("preview_recheck")), "Infrastructure events": mo.json(data.get("infrastructure_events", [])), "Frozen controller source": _recorded_json(data.get("frozen_controller_source")), "Frozen execution ledger": mo.json(data["ledger"]), "Qualification gate": mo.json(data["qualification"]), "Qualification attempts": mo.json(data["qualification_attempts"]), "Earlier qualification failures (original records)": mo.json(data["prior_qualification"]), "Cleanup reconciliations": mo.json(data["cleanup_reconciliations"]), "Artifact integrity readback": mo.json(data.get("artifact_readbacks", [])), "Provenance": mo.json(data["inputs"])})])
     return
 
 

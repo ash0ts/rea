@@ -3,14 +3,16 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+import copy
 import json
 from pathlib import Path
 
 import wandb
 
-from forge_recovery.common import read_json, write_json
+from forge_recovery.common import digest, read_json, write_json
 from forge_recovery.experiment import summarize
 from forge_recovery.telemetry import credentials
+from recheck_preview import source_hashes
 
 
 def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
@@ -23,9 +25,37 @@ def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
         raise ValueError("Publish only the complete frozen comparison; missing attempts are not zeros")
     if any(r.get("upload_status") != "complete" for r in summary["attempts"]):
         raise ValueError("Retry failed artifact uploads before publishing; do not rerun agents")
+    if any(r.get("cleanup_status") != "complete" for r in summary["attempts"]):
+        raise ValueError("Reconcile owned cleanup receipts before final publication")
+    original_summary = copy.deepcopy(summary)
+    recheck = None
+    checker = Path(__file__).resolve().parents[1] / "containers/preview_check.py"
+    if experiment["code"]["containers/preview_check.py"] != digest(checker):
+        folder = root / "preview-recheck"
+        if not (folder / "publication.json").exists():
+            raise ValueError("The checker changed: complete and publish a uniform recorded-output recheck first")
+        recheck = read_json(folder / "summary.json")
+        manifest = recheck["manifest"]
+        expected_ids = {r["attempt_id"] for r in summary["attempts"]}
+        if not recheck["complete"] or set(recheck["attempts"]) != expected_ids or manifest["configuration_sha256"] != experiment["configuration_sha256"]:
+            raise ValueError("Uniform recheck does not cover this complete frozen campaign")
+        if any(manifest.get(key) != value for key, value in source_hashes().items()):
+            raise ValueError("Uniform recheck source changed after verification")
+        if any(manifest["original_result_sha256"][aid] != digest(root / "attempts" / aid / "result.json") for aid in expected_ids):
+            raise ValueError("An original attempt changed after the uniform recheck")
+        for row in summary["attempts"]:
+            corrected = recheck["attempts"][row["attempt_id"]]["checker"]
+            if corrected is not None:
+                row["checker"] = corrected
+        for arm in summary["arms"]:
+            summary["arms"][arm]["passed"] = sum(bool(r.get("checker", {}).get("passed")) for r in summary["attempts"] if r["arm"] == arm)
+        summary["score_basis"] = "Uniform corrected preview checks; original agent outcomes, pixels, regressions and resource measurements retained"
+        recheck["publication"] = read_json(folder / "publication.json")
+    else:
+        summary["score_basis"] = "Original independent checker"
     destination = root / "comparison"
     destination.mkdir(exist_ok=True)
-    value = {"summary": summary, "inputs": read_json(root / "inputs-publication.json"),
+    value = {"summary": summary, "original_summary": original_summary, "preview_recheck": recheck, "inputs": read_json(root / "inputs-publication.json"),
         "qualification": read_json(root / "qualification.json"), "ledger": read_json(ledger),
         "experiment": experiment, "qualification_attempts": [
             read_json(root / "attempts" / attempt["attempt_id"] / "result.json")
@@ -33,9 +63,12 @@ def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
         ], "prior_qualification": [
             read_json(result) for prior in prior_roots for result in sorted((prior / "attempts").glob("*/result.json"))
         ], "cleanup_reconciliations": [
-            read_json(receipt) for prior in prior_roots
+            read_json(receipt) for prior in [root, *prior_roots]
             for receipt in sorted((prior / "attempts").glob("*/cleanup-reconciliation.json"))
         ]}
+    source_receipt = root / "controller-publication.json"
+    value["frozen_controller_source"] = read_json(source_receipt) if source_receipt.exists() else None
+    value["infrastructure_events"] = [read_json(path) for path in sorted((root / "infrastructure-events").glob("*/event.json"))]
     readbacks = root / "artifact-readback.json"
     value["artifact_readbacks"] = read_json(readbacks) if readbacks.exists() else []
     # Count returned tool calls from recorded events; absent logs stay unknown.
@@ -59,6 +92,8 @@ def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
                     settings=wandb.Settings(disable_git=True, disable_code=True, console="off")) as run:
         artifact = wandb.Artifact(experiment["experiment_id"] + "-comparison", type="recovery-comparison")
         artifact.add_file(str(destination / "comparison.json"), name="comparison.json")
+        if (root / "infrastructure-events").exists():
+            artifact.add_dir(str(root / "infrastructure-events"), name="infrastructure-events")
         logged = run.log_artifact(artifact).wait()
         reference = f"{entity}/rea-showcase/{logged.name}"
         receipt = {"artifact": reference, "digest": logged.digest, "run_url": run.url}

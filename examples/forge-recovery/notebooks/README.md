@@ -83,3 +83,31 @@ versions. Each attempt artifact contains a snapshot taken before its own upload
 completed, so that snapshot can still say `upload_status: pending`. The final
 comparison joins the completed upload receipt without rewriting that historical
 snapshot. Recorded artifact-download hash checks are included in the comparison.
+
+
+## Uniform correction of recorded playback checks
+
+The first campaign's browser clock advanced between driver calls. Correcting that
+checker requires one uniform pass over all eligible retained previews, including
+original successes and failures. Finish all 24 attempts and reconcile their owned
+cleanup receipts first, then run:
+
+```sh
+uv run python notebooks/recheck_preview.py --root .local/experiment --publish
+uv run python notebooks/publish_comparison.py --root .local/experiment \
+  --ledger .local/execution-ledger.json
+```
+
+The recheck uses the frozen checker image, the corrected checked-in checker source
+and fresh isolated containers. It never runs a model or submitted decoder. Only
+previews whose original decoder and pixel checks passed are eligible; all other
+original criteria remain unchanged. It refuses partial campaigns, changed source,
+changed original records, and incomplete recheck directories. Original result
+files remain byte-identical. A separate immutable verification artifact retains
+per-case observations, original output hashes, correction source and cleanup IDs.
+
+The comparison publisher refuses to publish a changed checker without this complete
+published correction. Both original and corrected records appear in the comparison
+notebook. Task statuses, inference usage and original performance measurements stay
+unchanged; recheck resource measurements are separate. A request-limited attempt
+can have a correct decoder, so paired tables show both task status and check pass.
