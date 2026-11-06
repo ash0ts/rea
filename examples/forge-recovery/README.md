@@ -91,3 +91,11 @@ Docker start, execution transport and cleanup calls have deadlines. A daemon
 connection failure is an infrastructure error, distinct from a generated command
 exiting or timing out. The container ID/owner receipt remains available when
 cleanup or a late startup response cannot be verified.
+
+## Run and inspect the comparison
+
+Follow [the instrumented runner guide](INSTRUMENTATION.md) to qualify the model
+and execute the frozen comparison. [The notebook guide](notebooks/README.md)
+explains the two recorded-data explorers and native Forge save/readback workflow.
+The [research contract](RESEARCH.md) defines controls, measurements and limits on
+claims. Notebook controls do not launch inference.
