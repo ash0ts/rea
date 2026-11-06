@@ -13,13 +13,14 @@ from forge_recovery.telemetry import message
 
 def test_unknown_requests_survive_controller_restart_and_stop_budget(tmp_path):
     ledger = Ledger(tmp_path / "ledger.json")
-    for _ in range(23):
+    admitted = int(5 / REQUEST_RESERVATION)
+    for _ in range(admitted):
         ledger.reserve("interrupted")
     resumed = Ledger(tmp_path / "ledger.json")
     with pytest.raises(BudgetStop):
         resumed.reserve("interrupted")
-    assert resumed.summary("interrupted")["unknown_usage_requests"] == 23
-    assert resumed.summary()["reserved_or_estimated_usd"] == pytest.approx(23 * REQUEST_RESERVATION)
+    assert resumed.summary("interrupted")["unknown_usage_requests"] == admitted
+    assert resumed.summary()["reserved_or_estimated_usd"] == pytest.approx(admitted * REQUEST_RESERVATION)
 
 
 def test_global_budget_reserves_notebook_allowance(tmp_path):

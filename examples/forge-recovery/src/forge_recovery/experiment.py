@@ -16,7 +16,7 @@ from weave.conversation import Message, start_conversation, start_turn
 
 from .agent import rea_session, recover, tools_for
 from .benchmark import PACKAGE
-from .budget import BudgetStop, Ledger, REQUEST_RESERVATION
+from .budget import BudgetStop, Ledger, OUTPUT_LIMIT, REQUEST_RESERVATION
 from .common import FAMILIES, REA_REVISION, canonical_digest, digest, inventory, read_json, verify_inventory, write_json
 from .judge import copy_regular_tree, evaluate
 from .sandbox import Sandbox
@@ -105,7 +105,7 @@ async def freeze(root: Path, prepared: Path, entity: str) -> dict:
     value = {"schema_version": 1, "experiment_id": experiment_id, "entity": entity, "project": "rea-showcase",
         "prepared": str(prepared.resolve()), "prepared_manifest": data, "rea_revision": REA_REVISION, "images": images,
         "model": MODEL, "base_url": "https://api.inference.wandb.ai/v1", "temperature": 0.2,
-        "request_max_tokens": 8192, "request_max_retries": 0, "request_reservation_usd": REQUEST_RESERVATION,
+        "request_max_tokens": OUTPUT_LIMIT, "request_max_retries": 0, "request_reservation_usd": REQUEST_RESERVATION,
         "budget": {"total_usd": 150, "attempts_usd": 130, "notebooks_usd": 20, "attempt_usd": 5, "attempt_seconds": 900, "agent_seconds": 810, "attempt_requests": 40},
         "system_prompt": SYSTEM, "task_prompt": TASK, "tools": {"baseline": await tools_for(None), "rea": rea_tools},
         "code": code_inventory(), "attempts": attempts,

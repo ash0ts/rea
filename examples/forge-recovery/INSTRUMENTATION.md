@@ -73,3 +73,11 @@ records retain their original HTTP 400 outcome; a corrected runner uses a new
 frozen experiment. Invalid-input regression passes also require that the decoder
 ran successfully on both valid inputs, so a missing or broken decoder cannot
 receive credit merely for exiting nonzero.
+
+Before any scored attempt, the next qualification increases the output allowance
+to 16,384 tokens for both arms. Kimi-K2.7-Code, temperature, prompts, 40 requests,
+15 minutes and $5 per-attempt limits remain fixed. The request reservation derives
+from that same output limit. The user authorized further qualification and removed
+the total spending restriction; the implementation retains its conservative $150
+default because current execution is well below it. Every earlier experiment keeps
+its original configuration and results.
