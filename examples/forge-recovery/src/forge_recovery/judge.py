@@ -53,6 +53,11 @@ def stage_decoder(candidate: Path, work: Path) -> None:
         shutil.copyfile(decoder, work / "decode.py")
 
 
+def passed_all_checks(result: dict) -> bool:
+    """One scoring rule for original checks and uniform recorded-output rechecks."""
+    return all(c["decoder"]["exit_code"] == 0 and c["pixels"]["passed"] and c["preview"]["passed"] for c in result["cases"].values()) and all(c["passed"] for c in result["regressions"].values())
+
+
 def evaluate(candidate: Path, oracle: Path, root: Path, images: dict, deadline: float | None = None) -> dict:
     def run(box, command, timeout):
         remaining = deadline - time.monotonic() - 10 if deadline else timeout
@@ -101,5 +106,5 @@ def evaluate(candidate: Path, oracle: Path, root: Path, images: dict, deadline: 
                 "execution": checked,
             }
         result["resources"].append(box.resources())
-    result["passed"] = all(c["decoder"]["exit_code"] == 0 and c["pixels"]["passed"] and c["preview"]["passed"] for c in result["cases"].values()) and all(c["passed"] for c in result["regressions"].values())
+    result["passed"] = passed_all_checks(result)
     return result
