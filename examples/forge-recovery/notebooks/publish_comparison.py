@@ -26,8 +26,14 @@ def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
     destination.mkdir(exist_ok=True)
     value = {"summary": summary, "inputs": read_json(root / "inputs-publication.json"),
         "qualification": read_json(root / "qualification.json"), "ledger": read_json(ledger),
-        "experiment": experiment, "prior_qualification": [
+        "experiment": experiment, "qualification_attempts": [
+            read_json(root / "attempts" / attempt["attempt_id"] / "result.json")
+            for attempt in experiment["qualification"]
+        ], "prior_qualification": [
             read_json(result) for prior in prior_roots for result in sorted((prior / "attempts").glob("*/result.json"))
+        ], "cleanup_reconciliations": [
+            read_json(receipt) for prior in prior_roots
+            for receipt in sorted((prior / "attempts").glob("*/cleanup-reconciliation.json"))
         ]}
     write_json(destination / "comparison.json", value)
     credentials()
