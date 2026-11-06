@@ -1,11 +1,17 @@
 # Follow one recovered animation
 
-Final native publication is pending the complete 24-attempt comparison. The pair
-below passes the original recorded checks. A discovered browser-clock defect is
-being corrected through a uniform recheck of every eligible retained preview;
-final playback claims and the default pair will use that corrected check.
+All 24 scheduled attempts are retained in
+`wandb/rea-showcase/recovery-aa7c373605fd-comparison:v0`. Uniform corrected browser
+checks yield 5/12 baseline passes and 9/12 REA-available passes; one baseline
+judgment is unavailable. Original judgments remain alongside the correction.
+The pair below is the first successful treatment in corrected manifest order.
 
-1. Open **Recover the animation** and keep the default `basic`, repetition `1`.
+Open the private [native report](https://forge.coreweave.com/wandb/wandb/rea-showcase/reports/REA-animation-recovery-%E2%80%94-24-of-24-recorded--VmlldzoxODI2NjA3NA==)
+or [saved workspace](https://forge.coreweave.com/wandb/wandb/rea-showcase?nw=xuxkzunn5gq)
+for every attempt and its resources. Both notebooks were explicitly saved,
+downloaded with exact source matches, and executed in fresh native runtimes.
+
+1. Open [Recover the animation](https://forge.coreweave.com/notebooks/Tm90ZWJvb2s6MTUyNzM%3D) and keep the default `basic`, repetition `1`.
    Start with the unseen nine-frame input, then switch to the visible six-frame
    input. Scrub every frame and inspect the RGBA difference: the treatment output
    matches the pinned Piskel renderer exactly. The paired baseline has no decoder
@@ -24,7 +30,7 @@ final playback claims and the default pair will use that corrected check.
    and [baseline artifact](https://forge.coreweave.com/wandb/wandb/rea-showcase/artifacts/recovery-attempt/attempt-recovery-aa7c373605fd-basic-baseline-1/v0).
    They preserve submissions, messages, events, checker outputs and Agent Lens
    readback. Artifact download and notebook controls do not launch inference.
-5. Open **What did REA change?** to inspect every scored attempt, criterion and
+5. Open [What did REA change?](https://forge.coreweave.com/notebooks/Tm90ZWJvb2s6MTUyNzQ%3D) to inspect every scored attempt, criterion and
    failure, rather than treating this one pair as the comparison's conclusion.
 
 This successful treatment agent invoked **zero REA tools**. Its success therefore

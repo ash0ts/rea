@@ -73,6 +73,12 @@ def publish(root: Path, ledger: Path, prior_roots: list[Path]) -> dict:
     value["infrastructure_events"] = [read_json(path) for path in sorted((root / "infrastructure-events").glob("*/event.json"))]
     readbacks = root / "artifact-readback.json"
     value["artifact_readbacks"] = read_json(readbacks) if readbacks.exists() else []
+    final_readbacks = root / "artifact-readback-final.json"
+    value["scored_artifact_readbacks"] = read_json(final_readbacks) if final_readbacks.exists() else []
+    trace_joins = root / "lens-integrity-final.json"
+    value["trace_join_verification"] = read_json(trace_joins) if trace_joins.exists() else None
+    summary_repair = root / "run-summary-repair.json"
+    value["native_run_summary_repair"] = read_json(summary_repair) if summary_repair.exists() else None
     # Count returned tool calls from recorded events; absent logs stay unknown.
     # This describes treatment use without changing any attempt result or score.
     value["tool_usage"] = {}
