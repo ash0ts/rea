@@ -235,3 +235,31 @@ the complete corrected checker outcome separately, warns about partial output,
 and leaves missing images visibly missing. A representative frame is an
 illustration, not a replacement for the full pixel and playback checks. Its
 JSON receipt retains each image path and hash.
+
+## Standalone format-recovery comparison
+
+The separate [format-recovery study](../format_recovery/README.md) compares the
+same coding agent with ordinary tools, with REA, and with samples but no shipped
+reader. Its 36 scored attempts and separate post-hoc coverage audit do not change
+the original animation or dependency-review results. The study guide documents
+the frozen controls, Python-only checker and reproduction commands.
+
+`publish_format_recovery.py` requires all original attempts, the completed
+added-input audit, and the separately frozen Unicode-ordering probe. Before writing the native Report, it reconciles actual model
+contexts and responses, tool calls, prompt/settings/tool-schema equality, exact
+staged-input inventories, Evidence exports, and every recorded primary and added
+judgment. Report filters must select exactly the 36 scored IDs. Publication reads
+saved results; it never runs an agent or submitted decoder.
+
+`build_format_media.py` produces all-attempt outcomes and paired resource figures.
+`build_format_example.py` shows the earliest primary-passing REA submission and its
+paired baseline on a retained unseen file. A successful reconstruction is not an
+attribution of that success to REA; the qualitative trace audit remains separate.
+
+After inspecting the native Report, save its screenshot as
+`media/native-format-report.png` and its verification receipt as
+`ui-verification.json` under the experiment root. `publish_format_media.py` then
+publishes the final media, saved Report definition and verification receipts in a
+separate immutable artifact. Both publishers download and hash-check their files.
+An interrupted publication keeps its progress receipt for reconciliation rather
+than silently creating another resource.

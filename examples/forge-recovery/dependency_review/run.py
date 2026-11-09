@@ -1,6 +1,6 @@
 """Contained package review: freeze, qualify, score, export, and retain every attempt."""
 from __future__ import annotations
-import argparse, asyncio, copy, json, os, resource, shutil, subprocess, sys, time
+import argparse, asyncio, copy, json, os, shutil, subprocess, sys, time
 from contextlib import ExitStack
 from pathlib import Path
 from uuid import uuid4
@@ -14,7 +14,7 @@ from forge_recovery.budget import Ledger, BudgetStop, REQUEST_RESERVATION
 from forge_recovery.common import read_json, write_json, inventory, canonical_digest, digest, REA_REVISION
 from forge_recovery.sandbox import Sandbox, SandboxTransportError
 from forge_recovery.telemetry import initialize, credentials, message, span_ids, readback
-from forge_recovery.experiment import export_evidence, error_status
+from forge_recovery.experiment import export_evidence, error_status, finalize_agent
 from openai import AsyncOpenAI
 from weave.conversation import start_conversation, start_turn, start_llm, start_tool, Message, Usage
 import wandb
@@ -231,14 +231,8 @@ async def attempt(config,spec,root,ledger,truth):
                 result.update(task_status=error_status(e),error=str(e));turn.record_error(e)
                 cancelled=result['task_status']=='cancelled'
             finally:
-                try:
-                    if box.container_id: result['agent_resources']=box.resources()
-                except Exception as e: result['resource_error']=str(e)
-                try: box.close();result['cleanup_status']='complete'
-                except BaseException as e: result.update(cleanup_status='retry_required',cleanup_error=str(e));cancelled |= isinstance(e,(KeyboardInterrupt,asyncio.CancelledError))
-                result.update(agent_elapsed_seconds=time.monotonic()-started,controller_cpu_seconds=time.process_time()-cpu,controller_peak_memory_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,usage=ledger.summary(spec['attempt_id']))
                 result['lens_url']='https://forge.coreweave.com/wandb/wandb/rea-showcase/weave/agents/conversations/'+spec['attempt_id']
-                write_json(folder/'result.json',result)
+                cancelled=finalize_agent(box,folder,result,started,cpu,ledger,spec['attempt_id']) or cancelled
     if cancelled: raise asyncio.CancelledError('Cancelled; local receipt retained')
     if result['cleanup_status']!='complete': raise RuntimeError('Cleanup unresolved; stop before next attempt')
     try:
