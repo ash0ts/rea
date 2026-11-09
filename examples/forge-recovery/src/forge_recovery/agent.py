@@ -66,7 +66,7 @@ async def recover(box: Sandbox, session, config: dict, attempt_id: str, ledger: 
     try:
         for index in range(40):
             if time.monotonic() >= deadline:
-                raise TimeoutError("Attempt exceeded 15 minutes")
+                raise TimeoutError("Attempt deadline exceeded")
             # Bound controller payload size; the provider owns token-context admission.
             # This is a byte limit, not an estimate of model tokens.
             if len(json.dumps({"messages": messages, "tools": toolset}).encode()) > REQUEST_BYTE_LIMIT:
@@ -115,7 +115,7 @@ async def recover(box: Sandbox, session, config: dict, attempt_id: str, ledger: 
                         arguments = json.loads(function["arguments"])
                         remaining = deadline - time.monotonic()
                         if remaining <= 0:
-                            raise TimeoutError("Attempt exceeded 15 minutes")
+                            raise TimeoutError("Attempt deadline exceeded")
                         if name == "execute":
                             value = await asyncio.to_thread(box.execute, arguments["command"], timeout=min(60, remaining))
                             delivered = json.dumps(value)

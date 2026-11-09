@@ -151,3 +151,21 @@ def test_combined_campaign_retains_images_across_gate_and_closes_on_failure(tmp_
         with pytest.raises(RuntimeError, match="no scored attempts"):
             asyncio.run(invocation)
         assert lifecycle == ["retain", "q", "release"]
+
+
+@pytest.mark.parametrize("platform,expected_bytes", [("darwin", 7), ("linux", 7168)])
+def test_controller_memory_units_are_normalized_at_finalization(harness, monkeypatch, platform, expected_bytes):
+    from types import SimpleNamespace
+    import time
+    config, spec, root, ledger, box_type = harness
+    folder = root / "attempts/a"
+    folder.mkdir(parents=True)
+    box = box_type(folder / "work", root)
+    box.start()
+    result = {"task_status": "submitted"}
+    monkeypatch.setattr(experiment.sys, "platform", platform)
+    monkeypatch.setattr(experiment.resource, "getrusage", lambda _: SimpleNamespace(ru_maxrss=7))
+    assert not experiment.finalize_agent(box, folder, result, time.monotonic(), time.process_time(), ledger, "a")
+    assert result["controller_peak_memory_bytes"] == expected_bytes
+    assert result["cleanup_status"] == "complete"
+    assert read_json(folder / "result.json")["controller_peak_memory_bytes"] == expected_bytes

@@ -138,6 +138,34 @@ async def export_evidence(session, box: Sandbox, root: Path, result: dict) -> No
             raise
 
 
+def finalize_agent(box: Sandbox, folder: Path, result: dict, started: float, host_cpu: float, ledger: Ledger, attempt_id: str) -> bool:
+    """Finish owned resources and persist cancellation before any next stage."""
+    try:
+        if box.container_id:
+            result["agent_resources"] = box.resources()
+    except Exception as error:
+        result["resource_error"] = str(error)
+    try:
+        box.close()
+        result["cleanup_status"] = "complete" if box.container_id is None else "retry_required"
+    except BaseException as error:
+        result.update(cleanup_status="retry_required", cleanup_error=f"{type(error).__name__}: {error}")
+        if isinstance(error, (KeyboardInterrupt, asyncio.CancelledError)):
+            result["task_status"] = "cancelled"
+    result.update(agent_elapsed_seconds=time.monotonic() - started,
+                  controller_cpu_seconds=time.process_time() - host_cpu,
+                  controller_peak_memory_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1 if sys.platform == "darwin" else 1024),
+                  usage=ledger.summary(attempt_id))
+    result["cleanup_retry_receipts"] = [str(p) for p in folder.rglob("*.container.json") if read_json(p).get("status") != "removed"]
+    if result["cleanup_retry_receipts"]:
+        result["cleanup_status"] = "retry_required"
+    limitation = "Controller peak memory is process-lifetime high-water, not per-attempt attribution; container memory covers the complete agent process family"
+    if limitation not in result.setdefault("limitations", []):
+        result["limitations"].append(limitation)
+    write_json(folder / "result.json", result)
+    return result["task_status"] == "cancelled"
+
+
 async def attempt(config: dict, spec: dict, root: Path, ledger: Ledger) -> dict:
     folder = root / "attempts" / spec["attempt_id"]
     if folder.exists():
@@ -180,26 +208,7 @@ async def attempt(config: dict, spec: dict, root: Path, ledger: Ledger) -> dict:
                 turn.record_error(error)
                 interrupted = result["task_status"] == "cancelled"
             finally:
-                try:
-                    if box.container_id:
-                        result["agent_resources"] = box.resources()
-                except Exception as error:
-                    result["resource_error"] = str(error)
-                try:
-                    box.close()
-                    result["cleanup_status"] = "complete" if box.container_id is None else "retry_required"
-                except BaseException as error:
-                    result["cleanup_status"] = "retry_required"
-                    result["cleanup_error"] = f"{type(error).__name__}: {error}"
-                    interrupted = interrupted or isinstance(error, (KeyboardInterrupt, asyncio.CancelledError))
-                    if interrupted:
-                        result["task_status"] = "cancelled"
-                result["agent_elapsed_seconds"] = time.monotonic() - started
-                result["controller_cpu_seconds"] = time.process_time() - host_cpu
-                result["controller_peak_memory_bytes"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1 if sys.platform == "darwin" else 1024)
-                result["limitations"].append("Controller peak memory is process-lifetime high-water, not per-attempt attribution; container memory covers the complete agent process family")
-                result["usage"] = ledger.summary(spec["attempt_id"])
-                write_json(folder / "result.json", result)
+                interrupted = finalize_agent(box, folder, result, started, host_cpu, ledger, spec["attempt_id"]) or interrupted
     interrupted = interrupted or result["task_status"] == "cancelled"
     if result["cleanup_status"] == "complete" and (folder / "work").exists():
         try:
