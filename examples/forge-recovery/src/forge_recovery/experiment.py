@@ -181,7 +181,7 @@ async def attempt(config: dict, spec: dict, root: Path, ledger: Ledger) -> dict:
     result = {**identity, "identity": identity, "task_status": "infrastructure_failure", "upload_status": "pending",
         "conversation_id": spec["attempt_id"], "started_at_unix": time.time(), "limitations": ["Remote model CPU and memory unavailable", "Provider price estimate uses uncached rates; billing settlement is not queried"]}
     result["inputs_artifact"] = read_json(root / "inputs-publication.json")
-    result["lens_url"] = f"https://forge.coreweave.com/wandb/{config['entity']}/rea-showcase/weave/agents/conversations/{spec['attempt_id']}"
+    result["lens_url"] = f"https://forge.coreweave.com/agent-lens/{config['entity']}/rea-showcase/conversations/{spec['attempt_id']}"
     write_json(folder / "result.json", result)
     started = time.monotonic()
     host_cpu = time.process_time()

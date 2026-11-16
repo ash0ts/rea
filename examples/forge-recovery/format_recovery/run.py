@@ -73,7 +73,7 @@ async def attempt(conf,spec,root):
     identity={**spec,'experiment_id':conf['experiment_id'],'configuration_sha256':conf['configuration_sha256']}
     result={**identity,'identity':identity,'task_status':'infrastructure_failure','upload_status':'pending','conversation_id':spec['attempt_id'],
         'started_at_unix':time.time(),'input_sha256':inventory(inputs),
-        'lens_url':'https://forge.coreweave.com/wandb/wandb/rea-showcase/weave/agents/conversations/'+spec['attempt_id'],
+        'lens_url':'https://forge.coreweave.com/agent-lens/wandb/rea-showcase/conversations/'+spec['attempt_id'],
         'limitations':['Four laboratory formats; repeated attempts are not independent new targets.','Remote inference CPU/memory unavailable.','Controller memory is lifetime-scoped.','Costs use conservative uncached rates; not settled billing.','No inference about human analyst productivity.']}
     box=Sandbox(folder/'work',inputs,image=conf['images']['rea' if spec['arm']=='rea' else 'base'],owner=spec['attempt_id'])
     ledger=AttemptLedger(root/'budget.json');start=time.monotonic();cpu=time.process_time();cancelled=False

@@ -231,7 +231,7 @@ async def attempt(config,spec,root,ledger,truth):
                 result.update(task_status=error_status(e),error=str(e));turn.record_error(e)
                 cancelled=result['task_status']=='cancelled'
             finally:
-                result['lens_url']='https://forge.coreweave.com/wandb/wandb/rea-showcase/weave/agents/conversations/'+spec['attempt_id']
+                result['lens_url']='https://forge.coreweave.com/agent-lens/wandb/rea-showcase/conversations/'+spec['attempt_id']
                 cancelled=finalize_agent(box,folder,result,started,cpu,ledger,spec['attempt_id']) or cancelled
     if cancelled: raise asyncio.CancelledError('Cancelled; local receipt retained')
     if result['cleanup_status']!='complete': raise RuntimeError('Cleanup unresolved; stop before next attempt')

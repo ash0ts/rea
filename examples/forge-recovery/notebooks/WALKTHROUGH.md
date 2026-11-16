@@ -21,10 +21,10 @@ downloaded with exact source matches, and executed in fresh native runtimes.
    browser preview. The submitted decoder also rejected malformed JSON and a
    missing chunk. Fresh check containers received only the program and one input;
    they could not reuse its previously generated frames.
-3. Open the [final decoder-writing tool span](https://forge.coreweave.com/wandb/wandb/rea-showcase/weave/agents/conversations/recovery-aa7c373605fd-basic-rea-1?chatTab=spans&convTurn=1&chatTrace=ad9dc5a45b1c75886820ab9728edc060&span=4f8d2628102604f4)
+3. Open the [final decoder-writing tool span](https://forge.coreweave.com/agent-lens/wandb/rea-showcase/conversations/recovery-aa7c373605fd-basic-rea-1/spans/turns/ad9dc5a45b1c75886820ab9728edc060/spans/4f8d2628102604f4)
    in Agent Lens. Inspect its matching `functions.execute:36` call and result,
    then navigate backward to the model request and earlier investigation. The
-   [paired baseline conversation](https://forge.coreweave.com/wandb/wandb/rea-showcase/weave/agents/conversations/recovery-aa7c373605fd-basic-baseline-1)
+   [paired baseline conversation](https://forge.coreweave.com/agent-lens/wandb/rea-showcase/conversations/recovery-aa7c373605fd-basic-baseline-1)
    shows its unsuccessful investigation through the same 40-request limit.
 4. Open the immutable [treatment artifact](https://forge.coreweave.com/wandb/wandb/rea-showcase/artifacts/recovery-attempt/attempt-recovery-aa7c373605fd-basic-rea-1/v0)
    and [baseline artifact](https://forge.coreweave.com/wandb/wandb/rea-showcase/artifacts/recovery-attempt/attempt-recovery-aa7c373605fd-basic-baseline-1/v0).
