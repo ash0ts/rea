@@ -16,7 +16,7 @@ from forge_recovery.sandbox import Sandbox, SandboxTransportError
 from forge_recovery.telemetry import initialize, credentials, message, span_ids, readback
 from forge_recovery.experiment import export_evidence, error_status, finalize_agent
 from openai import AsyncOpenAI
-from weave.conversation import start_conversation, start_turn, start_llm, start_tool, Message, Usage
+from coreweave.forge.agentlens.tracing import start_conversation, start_turn, start_llm, start_tool, Message, Usage
 import wandb
 
 REA_NAMES=('analyze_javascript_application','compare_application_versions','inspect_analysis_view','get_evidence_bundle')

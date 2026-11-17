@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from openai import APITimeoutError
-from weave.conversation import Message, start_conversation, start_turn
+from coreweave.forge.agentlens.tracing import Message, start_conversation, start_turn
 
 from .agent import REQUEST_BYTE_LIMIT, rea_session, recover, tools_for
 from .benchmark import PACKAGE
@@ -191,7 +191,7 @@ async def attempt(config: dict, spec: dict, root: Path, ledger: Ledger) -> dict:
     with start_conversation(agent_name="Piskel recovery", model=config["model"], conversation_id=spec["attempt_id"], conversation_name=f"{spec['fixture']} · {spec['arm']} · {spec['repetition']}", attributes=identity):
         with start_turn(user_message=config["task_prompt"], model=config["model"], system_instructions=[config["system_prompt"]]) as turn:
             result.update(span_ids())
-            turn.set_attributes({"recovery.run_url": f"https://wandb.ai/{config['entity']}/rea-showcase/runs/{spec['attempt_id']}",
+            turn.set_attributes({"recovery.run_url": f"https://forge.coreweave.com/wandb/{config['entity']}/rea-showcase/runs/{spec['attempt_id']}",
                 "recovery.artifact_collection": f"{config['entity']}/rea-showcase/attempt-{spec['attempt_id']}"})
             try:
                 box.start()
