@@ -9,7 +9,7 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from openai import AsyncOpenAI
-from weave.conversation import Usage, start_llm, start_tool
+from coreweave.forge.agentlens.tracing import Usage, start_llm, start_tool
 
 from .budget import BudgetStop, Ledger, OUTPUT_LIMIT
 from .common import write_json

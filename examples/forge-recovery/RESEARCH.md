@@ -16,7 +16,8 @@ uses a separate fixture. Two repetitions are repeated observations, not new task
 Freeze both arms before scored execution. The baseline has file/search/code tools;
 the treatment adds REA. Both use the same model, prompt, ordinary tools, fixture
 bytes, limits and checker. Alternate arm order. Each run gets a fresh workspace;
-there is no cross-attempt agent memory or warm REA Evidence cache.
+there is no cross-attempt agent memory or warm REA Evidence cache. Host filesystem
+and image caches are not reset, so this is not a fully cold-machine comparison.
 
 Task pass requires exact output pixels, ordering, dimensions, FPS, hidden-frame
 playback, sprite-sheet export, held-out generalization, malformed-input rejection

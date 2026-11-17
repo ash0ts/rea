@@ -6,9 +6,20 @@ from pathlib import Path
 
 import httpx
 import wandb
-import weave
+from coreweave.forge.agentlens import tracing
+from coreweave.forge.agentlens.tracing import (
+    Message,
+    TextPart,
+    ToolCallPart,
+    ToolCallResponsePart,
+    Turn,
+    Usage,
+    start_conversation,
+    start_llm,
+    start_tool,
+    start_turn,
+)
 from opentelemetry import trace
-from weave.conversation import Message, TextPart, ToolCallPart, ToolCallResponsePart
 
 from .common import write_json
 
@@ -39,8 +50,8 @@ def ensure_private_project(entity: str) -> dict:
 
 def initialize(entity: str):
     ensure_private_project(entity)
-    # This pinned SDK uses explicit opt-in patching. Spans below are manual.
-    return weave.init(f"{entity}/rea-showcase")
+    # This pinned Forge SDK uses explicit opt-in patching. Spans below are manual.
+    return tracing.init(f"{entity}/rea-showcase", autopatch_integrations=False)
 
 
 def message(value: dict) -> Message:
@@ -57,13 +68,14 @@ def message(value: dict) -> Message:
 def span_ids() -> dict:
     context = trace.get_current_span().get_span_context()
     if not context.is_valid:
-        raise RuntimeError("Conversation SDK did not initialize a real trace provider")
+        raise RuntimeError("Forge Agent Lens SDK did not initialize a real trace provider")
     return {"trace_id": format(context.trace_id, "032x"), "span_id": format(context.span_id, "016x")}
 
 
 def readback(entity: str, conversation_id: str, destination: Path) -> dict:
     provider = trace.get_tracer_provider()
-    if not provider.force_flush(timeout_millis=15000):
+    flushed = provider.force_flush(timeout_millis=15000) if hasattr(provider, "force_flush") else tracing.force_flush(timeout_millis=15000)
+    if not flushed:
         raise RuntimeError("Conversation export flush timed out")
     with httpx.Client(auth=("api", credentials()), timeout=30) as client:
         response = client.post("https://trace.wandb.ai/agents/conversations/chat", json={

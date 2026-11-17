@@ -1,0 +1,4 @@
+FROM rea-forge-recovery-base:v1
+RUN npm install --prefix /opt/build --ignore-scripts terser@5.44.1
+WORKDIR /work
+CMD ["sleep", "infinity"]

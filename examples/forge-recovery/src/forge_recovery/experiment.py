@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from openai import APITimeoutError
-from weave.conversation import Message, start_conversation, start_turn
+from coreweave.forge.agentlens.tracing import Message, start_conversation, start_turn
 
 from .agent import REQUEST_BYTE_LIMIT, rea_session, recover, tools_for
 from .benchmark import PACKAGE
@@ -181,7 +181,7 @@ async def attempt(config: dict, spec: dict, root: Path, ledger: Ledger) -> dict:
     result = {**identity, "identity": identity, "task_status": "infrastructure_failure", "upload_status": "pending",
         "conversation_id": spec["attempt_id"], "started_at_unix": time.time(), "limitations": ["Remote model CPU and memory unavailable", "Provider price estimate uses uncached rates; billing settlement is not queried"]}
     result["inputs_artifact"] = read_json(root / "inputs-publication.json")
-    result["lens_url"] = f"https://forge.coreweave.com/wandb/{config['entity']}/rea-showcase/weave/agents/conversations/{spec['attempt_id']}"
+    result["lens_url"] = f"https://forge.coreweave.com/agent-lens/{config['entity']}/rea-showcase/conversations/{spec['attempt_id']}"
     write_json(folder / "result.json", result)
     started = time.monotonic()
     host_cpu = time.process_time()
@@ -191,7 +191,7 @@ async def attempt(config: dict, spec: dict, root: Path, ledger: Ledger) -> dict:
     with start_conversation(agent_name="Piskel recovery", model=config["model"], conversation_id=spec["attempt_id"], conversation_name=f"{spec['fixture']} · {spec['arm']} · {spec['repetition']}", attributes=identity):
         with start_turn(user_message=config["task_prompt"], model=config["model"], system_instructions=[config["system_prompt"]]) as turn:
             result.update(span_ids())
-            turn.set_attributes({"recovery.run_url": f"https://wandb.ai/{config['entity']}/rea-showcase/runs/{spec['attempt_id']}",
+            turn.set_attributes({"recovery.run_url": f"https://forge.coreweave.com/wandb/{config['entity']}/rea-showcase/runs/{spec['attempt_id']}",
                 "recovery.artifact_collection": f"{config['entity']}/rea-showcase/attempt-{spec['attempt_id']}"})
             try:
                 box.start()
